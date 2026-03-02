@@ -123,14 +123,19 @@ export const registerSonioxRoutes = async (
       const hasTonePrompt = windowContext.tonePrompt && windowContext.tonePrompt.trim() !== ''
       const basePrompt = getPromptForMode(mode, advancedSettings)
 
+      console.log(`[adjust-transcript] mode=${body.mode}, hasTone=${hasTonePrompt}, tonePreview="${windowContext.tonePrompt?.slice(0, 60) || ''}"...`)
+
       let systemPrompt: string
       if (mode === ItoMode.TRANSLATE) {
         const targetLang = body.targetLanguage || 'en'
         systemPrompt = hasTonePrompt
           ? getTranslationTonePrompt(windowContext.tonePrompt, targetLang)
           : getTranslationBasePrompt(basePrompt, targetLang)
+      } else if (hasTonePrompt) {
+        systemPrompt = `${basePrompt}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+        console.log(`[adjust-transcript] Combined base prompt (${basePrompt.length} chars) + tone (${windowContext.tonePrompt.length} chars)`)
       } else {
-        systemPrompt = hasTonePrompt ? windowContext.tonePrompt : basePrompt
+        systemPrompt = basePrompt
       }
 
       const userPrompt = createUserPromptWithContext(trimmedTranscript, windowContext)
@@ -156,9 +161,10 @@ export const registerSonioxRoutes = async (
             windowContext.browserUrl && `URL: ${windowContext.browserUrl}`,
           ].filter(Boolean).join('\n')
 
+          const caBasePrompt = getPromptForMode(mode, advancedSettings)
           const baseSystemPrompt = hasTonePrompt
-            ? windowContext.tonePrompt
-            : getPromptForMode(mode, advancedSettings)
+            ? `${caBasePrompt}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+            : caBasePrompt
 
           const enrichedSystemPrompt = contextParts
             ? `${baseSystemPrompt}\n\nCONTEXTE ADDITIONNEL:\n${contextParts}`
@@ -211,7 +217,11 @@ export const registerSonioxRoutes = async (
           '[adjust-transcript] CONTEXT_AWARENESS: Vision failed or unavailable, falling through to text-only (degraded mode)',
         )
 
-        systemPrompt = getPromptForMode(ItoMode.EDIT, advancedSettings)
+        const editFallback = getPromptForMode(ItoMode.EDIT, advancedSettings)
+        systemPrompt = hasTonePrompt
+          ? `${editFallback}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+          : editFallback
+        console.log(`[adjust-transcript] Vision fallback to EDIT mode, hasTone=${hasTonePrompt}`)
       }
 
       let finalUserPrompt = userPrompt
@@ -219,6 +229,8 @@ export const registerSonioxRoutes = async (
         const targetLang = body.targetLanguage || 'en'
         const langName = getLanguageNameFromCode(targetLang)
         finalUserPrompt = `[LANGUAGE REMINDER: Output MUST be in ${langName}. Ignore the language of context metadata below.]\n${userPrompt}`
+      } else if (mode === ItoMode.CONTEXT_AWARENESS) {
+        finalUserPrompt = `[LANGUAGE RULE: Follow the user's voice command below. If the user asks for a translation or a specific language, output in that requested language. Otherwise, output in the SAME language as the user's voice command. Do NOT default to the language of context metadata (window titles, app names, URLs). The voice command language takes priority.]\n${userPrompt}`
       } else {
         finalUserPrompt = `[LANGUAGE RULE: Your output MUST be in the SAME language as the user's dictated text below. Do NOT translate it. Do NOT switch to the language of the context metadata. Preserve the original language of the spoken text exactly.]\n${userPrompt}`
       }
@@ -237,21 +249,25 @@ export const registerSonioxRoutes = async (
         adjustedTranscript = applyReplacements(adjustedTranscript, replacements)
       }
 
-      const expectedLang = mode === ItoMode.TRANSLATE
-        ? (body.targetLanguage || 'en')
-        : detectTextLanguage(trimmedTranscript)
+      if (mode !== ItoMode.CONTEXT_AWARENESS) {
+        const expectedLang = mode === ItoMode.TRANSLATE
+          ? (body.targetLanguage || 'en')
+          : detectTextLanguage(trimmedTranscript)
 
-      if (expectedLang) {
-        adjustedTranscript = await guardLanguage(adjustedTranscript, {
-          expectedLanguage: expectedLang,
-          llmProvider,
-          llmOptions: {
-            temperature: advancedSettings.llmTemperature,
-            model: advancedSettings.llmModel,
-            prompt: systemPrompt,
-          },
-          userPrompt: finalUserPrompt,
-        })
+        if (expectedLang) {
+          adjustedTranscript = await guardLanguage(adjustedTranscript, {
+            expectedLanguage: expectedLang,
+            llmProvider,
+            llmOptions: {
+              temperature: advancedSettings.llmTemperature,
+              model: advancedSettings.llmModel,
+              prompt: systemPrompt,
+            },
+            userPrompt: finalUserPrompt,
+          })
+        }
+      } else {
+        console.log('[adjust-transcript] Skipping guardLanguage for CONTEXT_AWARENESS — user command may request different output language')
       }
 
       reply.send({

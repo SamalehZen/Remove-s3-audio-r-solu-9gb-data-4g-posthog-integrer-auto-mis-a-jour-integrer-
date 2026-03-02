@@ -19,6 +19,7 @@ import type {
 const MAX_ITERATIONS = 16
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 500
+const MAX_HISTORY_MESSAGES = 20
 
 function stripCodeFences(text: string): string {
   return text
@@ -90,6 +91,12 @@ export class Agent {
     console.info(`[Agent] History: ${this.history.length} messages`)
 
     this.history.push({ type: 'user', content: userInput })
+
+    if (this.history.length > MAX_HISTORY_MESSAGES) {
+      const trimmed = this.history.length - MAX_HISTORY_MESSAGES
+      this.history = this.history.slice(-MAX_HISTORY_MESSAGES)
+      console.info(`[Agent] History trimmed: removed ${trimmed} oldest messages, keeping ${MAX_HISTORY_MESSAGES}`)
+    }
 
     const toolExecutions: ToolExecution[] = []
     const decisionSystemPrompt = buildDecisionSystemPrompt(this.tools)

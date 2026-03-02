@@ -433,9 +433,15 @@ export class TranscribeStreamV2Handler {
 
     const basePrompt = getPromptForMode(mode, advancedSettings)
 
-    const systemPrompt = hasTonePrompt
-      ? windowContext.tonePrompt
-      : basePrompt
+    console.log(`[TranscribeStreamV2] mode=${mode}, hasTone=${hasTonePrompt}`)
+
+    let systemPrompt: string
+    if (hasTonePrompt) {
+      systemPrompt = `${basePrompt}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+      console.log(`[TranscribeStreamV2] Combined base prompt (${basePrompt.length} chars) + tone (${windowContext.tonePrompt.length} chars)`)
+    } else {
+      systemPrompt = basePrompt
+    }
 
     if (mode === ItoMode.CONTEXT_AWARENESS && windowContext.screenCaptureBase64) {
       console.log(
@@ -510,18 +516,29 @@ export class TranscribeStreamV2Handler {
       console.warn('[TranscribeStreamV2] CONTEXT_AWARENESS: Vision failed or unavailable, falling through to text-only (degraded mode)')
     }
 
-    const effectiveSystemPrompt = mode === ItoMode.CONTEXT_AWARENESS
-      ? getPromptForMode(ItoMode.EDIT, advancedSettings)
-      : systemPrompt
+    let effectiveSystemPrompt: string
+    if (mode === ItoMode.CONTEXT_AWARENESS) {
+      const editFallback = getPromptForMode(ItoMode.EDIT, advancedSettings)
+      effectiveSystemPrompt = hasTonePrompt
+        ? `${editFallback}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+        : editFallback
+    } else {
+      effectiveSystemPrompt = systemPrompt
+    }
 
     const userPrompt = createUserPromptWithContext(transcript, windowContext)
-    const finalUserPrompt = `[LANGUAGE RULE: Your output MUST be in the SAME language as the user's dictated text below. Do NOT translate it. Do NOT switch to the language of the context metadata or system prompt. Preserve the original language of the spoken text exactly.]\n${userPrompt}`
+    let finalUserPrompt: string
+    if (mode === ItoMode.CONTEXT_AWARENESS) {
+      finalUserPrompt = `[LANGUAGE RULE: Follow the user's voice command below. If the user asks for a translation or a specific language, output in that requested language. Otherwise, output in the SAME language as the user's voice command. Do NOT default to the language of context metadata (window titles, app names, URLs). The voice command language takes priority.]\n${userPrompt}`
+    } else {
+      finalUserPrompt = `[LANGUAGE RULE: Your output MUST be in the SAME language as the user's dictated text below. Do NOT translate it. Do NOT switch to the language of the context metadata or system prompt. Preserve the original language of the spoken text exactly.]\n${userPrompt}`
+    }
     const llmProvider = getLlmProvider(advancedSettings.llmProvider)
 
     const detectedInputLang = detectTextLanguage(transcript)
 
     console.log(
-      `[TranscribeStreamV2] LLM call - system prompt source: ${hasTonePrompt ? 'tonePrompt' : 'basePrompt'}${mode === ItoMode.CONTEXT_AWARENESS ? ' (degraded to EDIT)' : ''}, has user details: ${!!windowContext.userDetailsContext}, detected input lang: ${detectedInputLang}`,
+      `[TranscribeStreamV2] LLM call - system prompt source: ${hasTonePrompt ? 'basePrompt+tone' : 'basePrompt'}${mode === ItoMode.CONTEXT_AWARENESS ? ' (degraded to EDIT)' : ''}, has user details: ${!!windowContext.userDetailsContext}, detected input lang: ${detectedInputLang}`,
     )
 
     const adjustedTranscript = await serverTimingCollector.timeAsync(
@@ -546,7 +563,7 @@ export class TranscribeStreamV2Handler {
       )
     }
 
-    if (detectedInputLang) {
+    if (mode !== ItoMode.CONTEXT_AWARENESS && detectedInputLang) {
       return guardLanguage(filteredTranscript, {
         expectedLanguage: detectedInputLang,
         llmProvider,
@@ -557,6 +574,10 @@ export class TranscribeStreamV2Handler {
         },
         userPrompt: finalUserPrompt,
       })
+    }
+
+    if (mode === ItoMode.CONTEXT_AWARENESS) {
+      console.log('[TranscribeStreamV2] Skipping guardLanguage for CONTEXT_AWARENESS')
     }
 
     return filteredTranscript

@@ -3,7 +3,7 @@ import { getAdvancedSettings } from '../store'
 import { DEFAULT_ADVANCED_SETTINGS } from '../../constants/generated-defaults'
 
 const AGENT_REQUEST_TIMEOUT_MS = 45_000
-const AGENT_MAX_RETRIES = 2
+const AGENT_MAX_RETRIES = 0
 
 const VALID_PROVIDERS = ['gemini', 'groq', 'cerebras'] as const
 type ValidProvider = (typeof VALID_PROVIDERS)[number]
