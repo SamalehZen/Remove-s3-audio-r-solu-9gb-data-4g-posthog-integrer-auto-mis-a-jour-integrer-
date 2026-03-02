@@ -24,23 +24,6 @@ const MIN_PILL_HEIGHT = 6
 const EXPANDED_PILL_WIDTH = 180
 const EXPANDED_PILL_HEIGHT = 34
 
-const globalStyles = `
-  html, body, #app {
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-    background: transparent !important;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end;
-    pointer-events: none;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-`
-
 function getBarUpdateInterval(): number {
   const { activeTier } = usePerformanceStore.getState()
   if (activeTier === 'low') return 200
@@ -62,7 +45,6 @@ const Pill = () => {
     state => state.onboardingCompleted,
   )
   const { startRecording, stopRecording } = useAudioStore()
-  const activeTier = usePerformanceStore(s => s.activeTier)
   const config = usePerformanceStore(s => s.config)
 
   const [isRecording, setIsRecording] = useState(false)
@@ -95,24 +77,46 @@ const Pill = () => {
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
   const isRecordingRef = useRef(false)
   const hasBeenShownRef = useRef(false)
+  const stylesInjectedRef = useRef(false)
 
   const animDuration = config.animationDurationMultiplier === 0 ? '0s' : '0.2s'
   const blurValue = config.enableBackdropBlur ? 'blur(14px)' : 'none'
-  const gpuHints: React.CSSProperties =
-    activeTier !== 'low'
-      ? {
-          willChange: 'transform, opacity, width, height',
-          transform: 'translateZ(0)',
-        }
-      : {}
   const contentTransition =
     config.animationDurationMultiplier === 0 ? '0s' : '0.15s'
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
 
   useEffect(() => {
-    soundPlayer.init()
+    const idleId = requestIdleCallback(() => soundPlayer.init(), { timeout: 2000 })
     return () => {
+      cancelIdleCallback(idleId)
       soundPlayer.dispose()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (stylesInjectedRef.current) return
+    stylesInjectedRef.current = true
+    const style = document.createElement('style')
+    style.textContent = `
+      html, body, #app {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent !important;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        pointer-events: none;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+    `
+    document.head.appendChild(style)
+    if (document.fonts) {
+      document.fonts.load('11px Inter').catch(() => {})
+      document.fonts.load('10px Inter').catch(() => {})
     }
   }, [])
 
@@ -295,16 +299,12 @@ const Pill = () => {
 
   const handleMouseEnter = () => {
     setIsHovered(true)
-    if (window.api?.setPillMouseEvents) {
-      window.api.setPillMouseEvents(false)
-    }
+    window.api?.send('pill-set-mouse-events', false)
   }
 
   const handleMouseLeave = () => {
     setIsHovered(false)
-    if (window.api?.setPillMouseEvents) {
-      window.api.setPillMouseEvents(true, { forward: true })
-    }
+    window.api?.send('pill-set-mouse-events', true, { forward: true })
   }
 
   const handleClick = () => {
@@ -342,21 +342,7 @@ const Pill = () => {
       ? 'Analyzing...'
       : 'Transcribing'
 
-  const renderRightContent = () => {
-    if (isHovered && isIdle) {
-      return (
-        <span
-          style={{
-            fontSize: 11,
-            color: 'rgba(255,255,255,0.4)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Click to dictate
-        </span>
-      )
-    }
-
+  const renderActiveContent = () => {
     if (isManualRecording) {
       return (
         <>
@@ -422,17 +408,22 @@ const Pill = () => {
 
   return (
     <>
-      <style>{globalStyles}</style>
-      <style>{`
-        @keyframes pill-fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pill-fadeOut {
-          from { opacity: 1; transform: translateY(0); }
-          to   { opacity: 0; transform: translateY(8px); }
-        }
-      `}</style>
+      {/* GPU blur shader warm-up — off-screen, forces shader compilation on mount */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          width: 1,
+          height: 1,
+          backdropFilter: blurValue,
+          WebkitBackdropFilter: blurValue,
+          pointerEvents: 'none',
+          opacity: 0.01,
+          zIndex: -1,
+        }}
+      />
       <div
         style={{
           position: 'fixed',
@@ -444,6 +435,7 @@ const Pill = () => {
           alignItems: 'flex-end',
           pointerEvents: 'none',
           zIndex: 50,
+          contain: 'layout style',
         }}
       >
         <div
@@ -463,6 +455,7 @@ const Pill = () => {
               padding: 10,
               background: 'transparent',
               pointerEvents: 'auto',
+              contain: 'style',
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -519,6 +512,7 @@ const Pill = () => {
 
               <div
                 onClick={handleClick}
+                data-keep-transform="true"
                 style={{
                   width: isExpanded ? EXPANDED_PILL_WIDTH : MIN_PILL_WIDTH,
                   height: isExpanded ? EXPANDED_PILL_HEIGHT : MIN_PILL_HEIGHT,
@@ -529,10 +523,12 @@ const Pill = () => {
                   border: '1px solid rgba(255,255,255,0.3)',
                   backdropFilter: blurValue,
                   WebkitBackdropFilter: blurValue,
-                  transition: `all ${animDuration} ease-out`,
+                  transition: `width ${animDuration} ease-out, height ${animDuration} ease-out, border-radius ${animDuration} ease-out, background-color ${animDuration} ease-out, border-color ${animDuration} ease-out`,
                   cursor: 'pointer',
                   overflow: 'hidden',
-                  ...gpuHints,
+                  contain: 'layout paint style',
+                  willChange: 'transform, opacity, width, height',
+                  transform: 'translateZ(0)',
                 }}
               >
                 <div
@@ -602,9 +598,26 @@ const Pill = () => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       minWidth: 0,
+                      position: 'relative',
                     }}
                   >
-                    {renderRightContent()}
+                    {/* Always-rendered idle content — avoids first-mount layout shift */}
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'rgba(255,255,255,0.4)',
+                        whiteSpace: 'nowrap',
+                        position: 'absolute',
+                        opacity: isHovered && isIdle ? 1 : 0,
+                        transition: `opacity ${contentTransition} ease-out`,
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      Click to dictate
+                    </span>
+
+                    {/* Dynamic active content layered on top */}
+                    {!isIdle && renderActiveContent()}
                   </div>
                 </div>
               </div>

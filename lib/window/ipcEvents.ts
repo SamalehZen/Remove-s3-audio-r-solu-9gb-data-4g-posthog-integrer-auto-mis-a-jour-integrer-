@@ -662,8 +662,19 @@ export function registerIPC() {
     })
   })
 
-  // Pill window mouse event control
+  // Pill window mouse event control (invoke-based, for backward compat)
   handleIPC(
+    'pill-set-mouse-events',
+    (_e, ignore: boolean, options?: { forward?: boolean }) => {
+      const pillWindow = getPillWindow()
+      if (pillWindow) {
+        pillWindow.setIgnoreMouseEvents(ignore, options)
+      }
+    },
+  )
+
+  // Pill window mouse event control (send-based, fire-and-forget for performance)
+  ipcMain.on(
     'pill-set-mouse-events',
     (_e, ignore: boolean, options?: { forward?: boolean }) => {
       const pillWindow = getPillWindow()

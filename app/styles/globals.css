@@ -260,3 +260,14 @@
 [data-perf-tier='low'] [data-keep-transform='true'] {
   transform: unset !important;
 }
+
+/* ─── Pill Window Styles ─── */
+@keyframes pill-fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pill-fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(8px); }
+}
