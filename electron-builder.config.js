@@ -57,6 +57,13 @@ module.exports = {
   extraMetadata: {
     version: process.env.VITE_ITO_VERSION || '0.0.0-dev',
   },
+  // Windows requires 4-part version numbers (major.minor.build.revision)
+  // Convert semver (0.2.3) to Windows format (0.2.3.0)
+  buildVersion: process.env.VITE_ITO_VERSION
+    ? process.env.VITE_ITO_VERSION.split('.').length === 3
+      ? `${process.env.VITE_ITO_VERSION}.0`
+      : process.env.VITE_ITO_VERSION
+    : '0.0.0.0',
   protocols: {
     name: 'ito',
     schemes: stage === 'prod' ? ['ito'] : [`ito-dev`],
