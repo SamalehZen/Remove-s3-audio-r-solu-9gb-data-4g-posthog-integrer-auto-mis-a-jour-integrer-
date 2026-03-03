@@ -142,6 +142,31 @@ fn should_block() -> bool {
     }
 }
 
+// Check if a specific key is used in any registered hotkey
+fn is_key_in_hotkeys(key_name: &str) -> bool {
+    unsafe {
+        REGISTERED_HOTKEYS.iter().any(|hotkey| {
+            hotkey.keys.iter().any(|k| {
+                // Normalize key names for comparison
+                let normalized = match k.as_str() {
+                    "control-left" => "ControlLeft",
+                    "control-right" => "ControlRight",
+                    "command-left" => "MetaLeft",
+                    "command-right" => "MetaRight",
+                    "shift-left" => "ShiftLeft",
+                    "shift-right" => "ShiftRight",
+                    "option-left" => "AltLeft",
+                    "option-right" => "AltRight",
+                    "fn" => "Function",
+                    "space" => "Space",
+                    _ => k,
+                };
+                normalized == key_name
+            })
+        })
+    }
+}
+
 fn callback(event: Event) -> Option<Event> {
     match event.event_type {
         EventType::KeyPress(key) => {
@@ -187,18 +212,18 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keydown", &key);
 
-            // Check if we should block based on exact hotkey match
-            // Also ALWAYS block "fast fn" (Unknown 179) if fn is used in any hotkey
-            let fn_in_hotkeys = unsafe {
-                REGISTERED_HOTKEYS
-                    .iter()
-                    .any(|hotkey| hotkey.keys.contains(&"Function".to_string()))
-            };
+            // IMMEDIATE BLOCK: Check if this specific key is part of any registered hotkey
+            // This prevents modifier keys (Control, Windows, Alt, Fn) from reaching
+            // other applications when they are part of our hotkeys
+            if is_key_in_hotkeys(&key_name) {
+                // Key is used in at least one hotkey - block it from the system
+                // but still track it internally and output to our listener
+                // The event is silently consumed (not returned to the OS)
+                return None;
+            }
 
-            // Block the "fast fn" key immediately if fn is part of registered hotkeys
-            // This prevents the system from receiving the raw fn key event
-            if key_name == "Unknown(179)" && fn_in_hotkeys {
-                // Don't output this event - silently block it
+            // Also check for "fast fn" (Unknown 179) specifically
+            if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
                 return None;
             }
 
@@ -227,21 +252,6 @@ fn callback(event: Event) -> Option<Event> {
         }
         EventType::KeyRelease(key) => {
             let key_name = format!("{:?}", key);
-
-            // ALWAYS block "fast fn" (Unknown 179) release if fn is used in hotkeys
-            // This prevents the system from receiving the raw fn key event
-            let fn_in_hotkeys = unsafe {
-                REGISTERED_HOTKEYS
-                    .iter()
-                    .any(|hotkey| hotkey.keys.contains(&"Function".to_string()))
-            };
-            if key_name == "Unknown(179)" && fn_in_hotkeys {
-                // Update pressed keys but don't let event through
-                unsafe {
-                    CURRENTLY_PRESSED.retain(|k| k != "Function");
-                }
-                return None;
-            }
 
             // Normalize Unknown(179) to Function for detection purposes
             let normalized_key = if key_name == "Unknown(179)" {
@@ -280,7 +290,15 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keyup", &key);
 
-            // Always allow key release events through (except fn which is handled above)
+            // IMMEDIATE BLOCK for key releases too
+            // If this key is part of any hotkey, block it from reaching other apps
+            if is_key_in_hotkeys(&key_name) {
+                return None;
+            }
+            if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
+                return None;
+            }
+
             Some(event)
         }
         _ => Some(event), // Allow all other events
