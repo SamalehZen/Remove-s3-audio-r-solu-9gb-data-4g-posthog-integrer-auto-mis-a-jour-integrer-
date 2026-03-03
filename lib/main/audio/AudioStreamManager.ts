@@ -41,12 +41,11 @@ export class AudioStreamManager {
 
   stopStreaming() {
     this.isStreaming = false
+    this.removeListeners()
     if (this.resolveNewChunk) {
       this.resolveNewChunk()
       this.resolveNewChunk = null
     }
-    this.removeListeners()
-    this.audioChunkQueue = []
   }
 
   private setupListeners() {

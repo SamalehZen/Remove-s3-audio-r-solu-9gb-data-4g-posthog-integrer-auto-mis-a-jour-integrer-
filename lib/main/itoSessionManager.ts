@@ -16,6 +16,7 @@ import {
 } from './soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
 import { audioRecorderService } from '../media/audio'
+import { unmuteSystemAudio } from '../media/systemAudio'
 import { itoHttpClient } from '../clients/itoHttpClient'
 import { STORE_KEYS } from '../constants/store-keys'
 
@@ -298,6 +299,8 @@ export class ItoSessionManager {
     allowAppNap()
   }
 
+  private readonly DRAIN_FLUSH_MS = 80
+
   public async completeSession() {
     if (this.isSonioxMode) {
       await this.completeSonioxSession()
@@ -308,7 +311,8 @@ export class ItoSessionManager {
     this.streamResponsePromise = null
 
     timingCollector.endTiming(TimingEventName.INTERACTION_ACTIVE)
-    await voiceInputService.stopAudioRecording()
+
+    audioRecorderService.stopRecording()
 
     const audioDurationMs = itoStreamController.getAudioDurationMs()
 
@@ -319,6 +323,7 @@ export class ItoSessionManager {
       itoStreamController.cancelTranscription()
       itoStreamController.clearInteractionAudio()
       recordingStateNotifier.notifyRecordingStopped()
+      this.unmuteIfNeeded()
 
       if (responsePromise) {
         try {
@@ -334,7 +339,10 @@ export class ItoSessionManager {
       return
     }
 
+    await new Promise(resolve => setTimeout(resolve, this.DRAIN_FLUSH_MS))
+
     itoStreamController.endInteraction()
+    this.unmuteIfNeeded()
     recordingStateNotifier.notifyProcessingStarted()
     recordingStateNotifier.notifyRecordingStopped()
 
@@ -363,6 +371,12 @@ export class ItoSessionManager {
     } else {
       console.warn('[itoSessionManager] No stream response promise to wait for')
       recordingStateNotifier.notifyProcessingStopped()
+    }
+  }
+
+  private unmuteIfNeeded() {
+    if (store.get(STORE_KEYS.SETTINGS)?.muteAudioWhenDictating) {
+      unmuteSystemAudio()
     }
   }
 
@@ -582,12 +596,12 @@ export class ItoSessionManager {
     const errorMessage = response.error ? response.error.message : undefined
 
     if (response.error) {
-      await interactionManager.createInteraction(
+      interactionManager.createInteraction(
         response.transcript || '',
         audioBuffer,
         sampleRate,
         errorMessage,
-      )
+      ).catch(err => console.error('[itoSessionManager] Failed to save interaction:', err))
       timingCollector.clearInteraction()
       interactionManager.clearCurrentInteraction()
       itoStreamController.clearInteractionAudio()
@@ -604,12 +618,12 @@ export class ItoSessionManager {
 
         this.textInserter.insertText(textToInsert)
 
-        await interactionManager.createInteraction(
+        interactionManager.createInteraction(
           response.transcript,
           audioBuffer,
           sampleRate,
           errorMessage,
-        )
+        ).catch(err => console.error('[itoSessionManager] Failed to save interaction:', err))
       } else {
         log.warn('[itoSessionManager] Skipping text insertion:', {
           hasTranscript: !!response.transcript,
