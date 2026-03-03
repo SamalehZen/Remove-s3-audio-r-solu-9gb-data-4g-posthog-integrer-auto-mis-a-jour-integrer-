@@ -257,6 +257,7 @@ fn callback(event: Event) -> Option<Event> {
 
             // Also check for "fast fn" (Unknown 179) specifically
             if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
+                output_event("keyup", &key);
                 return None;
             }
 
