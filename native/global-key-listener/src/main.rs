@@ -188,7 +188,20 @@ fn callback(event: Event) -> Option<Event> {
             output_event("keydown", &key);
 
             // Check if we should block based on exact hotkey match
-            #[allow(clippy::if_same_then_else)]
+            // Also ALWAYS block "fast fn" (Unknown 179) if fn is used in any hotkey
+            let fn_in_hotkeys = unsafe {
+                REGISTERED_HOTKEYS
+                    .iter()
+                    .any(|hotkey| hotkey.keys.contains(&"Function".to_string()))
+            };
+
+            // Block the "fast fn" key immediately if fn is part of registered hotkeys
+            // This prevents the system from receiving the raw fn key event
+            if key_name == "Unknown(179)" && fn_in_hotkeys {
+                // Don't output this event - silently block it
+                return None;
+            }
+
             if should_block() {
                 // Windows-specific: Prevent Start menu from opening when Windows key is used in
                 // hotkeys Windows shows the Start menu if it sees "Win down →
@@ -208,20 +221,27 @@ fn callback(event: Event) -> Option<Event> {
                     }
                 }
                 None // Block the event from reaching the OS
-            } else if key_name == "Unknown(179)"
-                && unsafe {
-                    REGISTERED_HOTKEYS
-                        .iter()
-                        .any(|hotkey| hotkey.keys.contains(&"Function".to_string()))
-                }
-            {
-                None // Block Unknown(179) if any hotkey uses Function
             } else {
                 Some(event) // Let it through
             }
         }
         EventType::KeyRelease(key) => {
             let key_name = format!("{:?}", key);
+
+            // ALWAYS block "fast fn" (Unknown 179) release if fn is used in hotkeys
+            // This prevents the system from receiving the raw fn key event
+            let fn_in_hotkeys = unsafe {
+                REGISTERED_HOTKEYS
+                    .iter()
+                    .any(|hotkey| hotkey.keys.contains(&"Function".to_string()))
+            };
+            if key_name == "Unknown(179)" && fn_in_hotkeys {
+                // Update pressed keys but don't let event through
+                unsafe {
+                    CURRENTLY_PRESSED.retain(|k| k != "Function");
+                }
+                return None;
+            }
 
             // Normalize Unknown(179) to Function for detection purposes
             let normalized_key = if key_name == "Unknown(179)" {
@@ -260,7 +280,7 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keyup", &key);
 
-            // Always allow key release events through
+            // Always allow key release events through (except fn which is handled above)
             Some(event)
         }
         _ => Some(event), // Allow all other events
