@@ -19,7 +19,6 @@ const DEFAULT_LOCAL_USER_ID = 'local-user'
 const DETECTION_TIMEOUT_MS = 800
 
 const BROWSER_URL_TIMEOUT_MS = 500
-const BROWSER_FIRST_EMIT_TIMEOUT_MS = 350
 
 const KNOWN_BROWSERS = new Set([
   'google chrome',
@@ -128,42 +127,16 @@ export class RecordingStateNotifier {
       const lowerName = cached.window.appName.toLowerCase()
       if (!BLOCKED_APPS.has(lowerName)) {
         immediateName = cached.window.appName
+        // Use cached icon immediately, don't block for pending fetches
         immediateIcon = cached.iconBase64 ?? null
 
+        // Try to get icon from cache without waiting
         if (!immediateIcon) {
           const cacheKey = activeWindowMonitor.getIconCacheKeyForWindow(
             cached.window,
           )
           immediateIcon = activeWindowMonitor.getCachedIcon(cacheKey)
-
-          if (!immediateIcon) {
-            const pending = await activeWindowMonitor.waitForPendingIcon(
-              cacheKey,
-              150,
-            )
-            if (gen !== this.generation) return
-            if (pending) immediateIcon = pending
-          }
         }
-      }
-    }
-
-    const isBrowser = !!immediateName && this.isBrowserApp(immediateName)
-    let resolvePromise: Promise<{
-      name: string
-      iconBase64: string | null
-    } | null> | null = null
-
-    if (isBrowser) {
-      resolvePromise = this.resolveAppTargetWithIcon()
-      const timeout = new Promise<null>(r =>
-        setTimeout(() => r(null), BROWSER_FIRST_EMIT_TIMEOUT_MS),
-      )
-      const quickResult = await Promise.race([resolvePromise, timeout])
-      if (gen !== this.generation) return
-      if (quickResult) {
-        immediateName = quickResult.name
-        immediateIcon = quickResult.iconBase64 ?? immediateIcon
       }
     }
 
@@ -171,6 +144,7 @@ export class RecordingStateNotifier {
     this.lastSentAppIcon = immediateIcon
     this.setupWindowChangeListener(gen, mode)
 
+    // Send recording state immediately - don't wait for browser URL resolution
     this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
       isRecording: true,
       mode,
@@ -180,27 +154,32 @@ export class RecordingStateNotifier {
       screenThumbnailBase64: screenThumbnailBase64 ?? undefined,
     })
 
-    const pendingResolve = resolvePromise ?? this.resolveAppTargetWithIcon()
-    pendingResolve
-      .then(result => {
-        if (gen !== this.generation) return
-        if (!result) return
-        const resolvedIcon = result.iconBase64 ?? null
-        if (
-          result.name === this.lastSentAppName &&
-          resolvedIcon === this.lastSentAppIcon
-        )
-          return
-        this.lastSentAppName = result.name
-        this.lastSentAppIcon = resolvedIcon
-        this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
-          isRecording: true,
-          mode,
-          appTargetName: result.name,
-          appTargetIconBase64: resolvedIcon,
+    // For browsers: resolve domain name and favicon asynchronously
+    // This avoids blocking the recording start while fetching the URL
+    const isBrowser = !!immediateName && this.isBrowserApp(immediateName)
+    if (isBrowser) {
+      // Fire-and-forget URL resolution - will send update when ready
+      this.resolveAppTargetWithIcon()
+        .then(result => {
+          if (gen !== this.generation) return
+          if (!result) return
+          const resolvedIcon = result.iconBase64 ?? null
+          if (
+            result.name === this.lastSentAppName &&
+            resolvedIcon === this.lastSentAppIcon
+          )
+            return
+          this.lastSentAppName = result.name
+          this.lastSentAppIcon = resolvedIcon
+          this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
+            isRecording: true,
+            mode,
+            appTargetName: result.name,
+            appTargetIconBase64: resolvedIcon,
+          })
         })
-      })
-      .catch(() => {})
+        .catch(() => {})
+    }
   }
 
   public notifyRecordingStopped() {
