@@ -9,6 +9,7 @@ export const IPC_EVENTS = {
   SETTINGS_UPDATE: 'settings-update',
   ONBOARDING_UPDATE: 'onboarding-update',
   USER_AUTH_UPDATE: 'user-auth-update',
+  TAP_FEEDBACK: 'tap-feedback',
 } as const
 
 // IPC Payload Types
@@ -29,6 +30,10 @@ export interface ProcessingStatePayload {
 
 export interface VolumeUpdatePayload {
   volume: number
+}
+
+export interface TapFeedbackPayload {
+  duration: number
 }
 
 // Generic IPC Response Types

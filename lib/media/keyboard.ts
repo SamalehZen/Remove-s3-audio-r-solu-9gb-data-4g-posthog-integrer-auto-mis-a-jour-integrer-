@@ -7,6 +7,7 @@ import { itoSessionManager } from '../main/itoSessionManager'
 import { agentSessionManager } from '../main/agent/agentSessionManager'
 import { KeyName, keyNameMap, normalizeLegacyKey } from '../types/keyboard'
 import { ItoMode } from '@/app/generated/ito_pb'
+import { IPC_EVENTS } from '../types/ipc'
 
 interface KeyEvent {
   type: 'keydown' | 'keyup'
@@ -32,6 +33,11 @@ type ProcessEvent = KeyEvent | HeartbeatEvent | RegisteredHotkeysEvent
 export let KeyListenerProcess: ReturnType<typeof spawn> | null = null
 let activeShortcutId: string | null = null
 let activeIsAgent = false
+let sessionStartTime: number | null = null
+let shortPressTimer: NodeJS.Timeout | null = null
+
+// Threshold for detecting a "short press" - visual bump only
+const SHORT_PRESS_THRESHOLD_MS = 80
 
 // Heartbeat monitoring state
 let lastHeartbeatReceived = Date.now()
@@ -45,6 +51,11 @@ export const resetForTesting = () => {
     KeyListenerProcess = null
     activeShortcutId = null
     activeIsAgent = false
+    sessionStartTime = null
+    if (shortPressTimer) {
+      clearTimeout(shortPressTimer)
+      shortPressTimer = null
+    }
     pressedKeys.clear()
     keyPressTimestamps.clear()
     stopStuckKeyChecker()
@@ -234,15 +245,41 @@ async function handleKeyEventInMain(event: KeyEvent) {
   // Handle shortcut activation and mode changes
   if (currentlyHeldShortcut) {
     if (activeShortcutId === null) {
-      // Starting a new session
+      // Track this as a potential session start
       activeShortcutId = currentlyHeldShortcut.id
       activeIsAgent = !!currentlyHeldShortcut.isAgent
-      console.info('lib Shortcut ACTIVATED, starting recording...')
-      if (activeIsAgent) {
-        await agentSessionManager.startSession()
-      } else {
-        await itoSessionManager.startSession(currentlyHeldShortcut.mode)
+      sessionStartTime = Date.now()
+
+      // Clear any existing timer
+      if (shortPressTimer) {
+        clearTimeout(shortPressTimer)
+        shortPressTimer = null
       }
+
+      // Don't start session immediately - wait to see if it's a long press
+      // Start a timer for the threshold
+      // Capture the shortcut ID and mode to avoid closure issues
+      const shortcutIdForTimer = currentlyHeldShortcut.id
+      const shortcutModeForTimer = currentlyHeldShortcut.mode
+      const isAgentForTimer = activeIsAgent
+
+      shortPressTimer = setTimeout(async () => {
+        // If still holding after threshold, start the real session
+        if (
+          activeShortcutId === shortcutIdForTimer &&
+          sessionStartTime
+        ) {
+          console.info(
+            'lib Shortcut held > threshold, starting real recording...',
+          )
+          if (isAgentForTimer) {
+            await agentSessionManager.startSession()
+          } else {
+            await itoSessionManager.startSession(shortcutModeForTimer)
+          }
+        }
+        shortPressTimer = null
+      }, SHORT_PRESS_THRESHOLD_MS)
     } else if (activeShortcutId !== currentlyHeldShortcut.id) {
       const currentShortcut = keyboardShortcuts.find(
         ks => ks.id === activeShortcutId,
@@ -267,16 +304,43 @@ async function handleKeyEventInMain(event: KeyEvent) {
       itoSessionManager.setMode(currentlyHeldShortcut.mode)
     }
   } else if (!currentlyHeldShortcut) {
-    // No shortcut detected - cancel pending activation or deactivate active shortcut
+    // No shortcut detected - check duration and either show bump or complete
     if (activeShortcutId !== null) {
-      // Shortcut released - deactivate immediately (no debounce on release)
-      activeShortcutId = null
-      console.info('lib Shortcut DEACTIVATED, stopping recording...')
-      if (activeIsAgent) {
-        agentSessionManager.completeSession()
-      } else {
-        itoSessionManager.completeSession()
+      const pressDuration = sessionStartTime ? Date.now() - sessionStartTime : 0
+
+      // Always clear the timer on release
+      if (shortPressTimer) {
+        clearTimeout(shortPressTimer)
+        shortPressTimer = null
       }
+
+      // Check if this was a "short press" (quick tap < 80ms)
+      if (pressDuration < SHORT_PRESS_THRESHOLD_MS) {
+        // Short press: Just show visual bump, no session started
+        console.info(
+          `lib Shortcut RELEASED after ${pressDuration}ms (short press) - bump only...`,
+        )
+
+        // Send tap feedback to all windows for visual bump animation
+        BrowserWindow.getAllWindows().forEach(window => {
+          if (!window.webContents.isDestroyed()) {
+            window.webContents.send(IPC_EVENTS.TAP_FEEDBACK, {
+              duration: pressDuration,
+            })
+          }
+        })
+      } else {
+        // Normal/long press: Complete session normally
+        console.info('lib Shortcut DEACTIVATED, stopping recording...')
+        if (activeIsAgent) {
+          agentSessionManager.completeSession()
+        } else {
+          itoSessionManager.completeSession()
+        }
+      }
+
+      activeShortcutId = null
+      sessionStartTime = null
       activeIsAgent = false
     }
   }

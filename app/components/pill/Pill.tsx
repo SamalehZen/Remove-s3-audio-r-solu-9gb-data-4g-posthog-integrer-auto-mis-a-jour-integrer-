@@ -16,6 +16,7 @@ import { soundPlayer } from '@/app/utils/soundPlayer'
 import type {
   RecordingStatePayload,
   ProcessingStatePayload,
+  TapFeedbackPayload,
 } from '@/lib/types/ipc'
 import type { AppTarget } from '@/app/store/useAppStylingStore'
 import { ItoMode } from '@/app/generated/ito_pb'
@@ -87,6 +88,17 @@ const idleLineVariants = {
       stiffness: 500,
       damping: 20,
       mass: 0.6,
+    },
+  },
+  bump: {
+    width: 80,
+    height: 20,
+    borderRadius: 10,
+    transition: {
+      type: 'spring',
+      stiffness: 600,
+      damping: 15,
+      mass: 0.4,
     },
   },
 }
@@ -214,6 +226,7 @@ const Pill = () => {
   >(null)
   const [screenThumbnail, setScreenThumbnail] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
+  const [isBump, setIsBump] = useState(false)
   const isRecordingRef = useRef(false)
   const stylesInjectedRef = useRef(false)
 
@@ -221,9 +234,9 @@ const Pill = () => {
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
 
   const anyRecording = isRecording || isManualRecording
-  const isIdle = !anyRecording && !isProcessing
-  const isExpanded = isHovered || anyRecording || isProcessing
-  const isActive = anyRecording || isProcessing
+  const isIdle = !anyRecording && !isProcessing && !isBump
+  const isExpanded = isHovered || anyRecording || isProcessing || isBump
+  const isActive = anyRecording || isProcessing || isBump
 
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
@@ -409,6 +422,18 @@ const Pill = () => {
       }
     })
 
+    const unsubTapFeedback = window.api.on(
+      'tap-feedback',
+      (_payload: TapFeedbackPayload) => {
+        // Show bump animation for short tap
+        setIsBump(true)
+        // Reset after animation completes (300ms)
+        setTimeout(() => {
+          setIsBump(false)
+        }, 300)
+      },
+    )
+
     return () => {
       unsubRecording()
       unsubProcessing()
@@ -416,17 +441,18 @@ const Pill = () => {
       unsubSettings()
       unsubOnboarding()
       unsubUserAuth()
+      unsubTapFeedback()
     }
   }, [])
 
   useEffect(() => {
-    if (!isRecording && !isManualRecording && !isProcessing) {
+    if (!isRecording && !isManualRecording && !isProcessing && !isBump) {
       setAppTarget(null)
       setContextSource(null)
       setScreenThumbnail(null)
       setCurrentMode(undefined)
     }
-  }, [isRecording, isManualRecording, isProcessing])
+  }, [isRecording, isManualRecording, isProcessing, isBump])
 
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true)
@@ -475,19 +501,20 @@ const Pill = () => {
 
   const getLineVariant = () => {
     if (anyRecording || isProcessing) return 'recording'
+    if (isBump) return 'bump'
     if (isHovered) return 'hover'
     return 'initial'
   }
 
-  // Couleurs bleu et violet - pas de glow
+  // Couleurs neutres - pas de glow
   const getBackground = () => {
     if (anyRecording) {
-      // Bleu pendant recording
-      return 'linear-gradient(135deg, rgba(37,99,235,0.95) 0%, rgba(29,78,216,0.92) 100%)'
+      // Gris neutre pendant recording
+      return 'linear-gradient(135deg, rgba(55,55,65,0.95) 0%, rgba(45,45,55,0.92) 100%)'
     }
     if (isProcessing) {
-      // Violet pendant processing
-      return 'linear-gradient(135deg, rgba(147,51,234,0.95) 0%, rgba(126,34,206,0.92) 100%)'
+      // Gris neutre pendant processing
+      return 'linear-gradient(135deg, rgba(55,55,65,0.95) 0%, rgba(45,45,55,0.92) 100%)'
     }
     if (isHovered) {
       // Gris foncé au hover
