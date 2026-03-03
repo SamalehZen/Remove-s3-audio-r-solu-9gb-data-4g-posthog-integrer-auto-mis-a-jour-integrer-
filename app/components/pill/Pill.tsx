@@ -20,11 +20,40 @@ import type {
 import type { AppTarget } from '@/app/store/useAppStylingStore'
 import { ItoMode } from '@/app/generated/ito_pb'
 
-// Compact dimensions - pill plus petit
-const MIN_PILL_WIDTH = 48
-const MIN_PILL_HEIGHT = 6
-const EXPANDED_PILL_WIDTH = 180
-const EXPANDED_PILL_HEIGHT = 36
+const IDLE_WIDTH = 40
+const IDLE_HEIGHT = 8
+const RECORDING_WIDTH = 130
+const RECORDING_HEIGHT = 34
+const THINKING_WIDTH = 45
+const THINKING_HEIGHT = 34
+const HOVER_WIDTH = 110
+const HOVER_HEIGHT = 32
+
+const IOS_SPRING = {
+  type: 'spring' as const,
+  stiffness: 380,
+  damping: 30,
+  mass: 0.8,
+}
+
+const IOS_SPRING_SNAPPY = {
+  type: 'spring' as const,
+  stiffness: 420,
+  damping: 26,
+  mass: 0.7,
+}
+
+const CONTENT_ENTER = {
+  type: 'spring' as const,
+  stiffness: 400,
+  damping: 28,
+  mass: 0.7,
+}
+
+const CONTENT_EXIT = {
+  duration: 0.12,
+  ease: [0.4, 0, 1, 1] as const,
+}
 
 function getBarUpdateInterval(): number {
   const { activeTier } = usePerformanceStore.getState()
@@ -33,121 +62,36 @@ function getBarUpdateInterval(): number {
   return 64
 }
 
-// Animation variants - sans animations infinies pour économiser CPU
 const pillContainerVariants = {
   hidden: {
     opacity: 0,
-    y: 20,
-    scale: 0.9,
+    y: 16,
+    scale: 0.92,
   },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 25,
-      mass: 0.8,
-    },
+    transition: IOS_SPRING,
   },
   exit: {
     opacity: 0,
-    y: 15,
+    y: 12,
     scale: 0.95,
-    transition: {
-      duration: 0.2,
-    },
-  },
-}
-
-const idleLineVariants = {
-  initial: {
-    width: MIN_PILL_WIDTH,
-    height: MIN_PILL_HEIGHT,
-    borderRadius: 4,
-  },
-  hover: {
-    width: EXPANDED_PILL_WIDTH,
-    height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 18,
-    transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 25,
-      mass: 0.8,
-    },
-  },
-  recording: {
-    width: EXPANDED_PILL_WIDTH,
-    height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 18,
-    transition: {
-      type: 'spring',
-      stiffness: 500,
-      damping: 20,
-      mass: 0.6,
-    },
-  },
-}
-
-const contentRevealVariants = {
-  hidden: {
-    opacity: 0,
-    scale: 0.9,
-    y: 10,
-  },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    y: 0,
-    transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 25,
-      mass: 0.8,
-      staggerChildren: 0.05,
-      delayChildren: 0.02,
-    },
-  },
-  exit: {
-    opacity: 0,
-    scale: 0.95,
-    y: -5,
-    transition: {
-      duration: 0.12,
-    },
-  },
-}
-
-const iconPopVariants = {
-  hidden: { scale: 0.8, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: {
-      type: 'spring',
-      stiffness: 500,
-      damping: 15,
-      mass: 0.6,
-    },
+    transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
   },
 }
 
 const labelFloatVariants = {
-  hidden: { opacity: 0, y: 10 },
+  hidden: { opacity: 0, y: 8 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: {
-      type: 'spring',
-      stiffness: 400,
-      damping: 20,
-    },
+    transition: IOS_SPRING,
   },
   exit: {
     opacity: 0,
-    y: -8,
+    y: -6,
     transition: { duration: 0.1 },
   },
 }
@@ -157,11 +101,7 @@ const cancelButtonVariants = {
   visible: {
     scale: 1,
     opacity: 1,
-    transition: {
-      type: 'spring',
-      stiffness: 600,
-      damping: 15,
-    },
+    transition: IOS_SPRING_SNAPPY,
   },
   exit: {
     scale: 0,
@@ -222,7 +162,6 @@ const Pill = () => {
 
   const anyRecording = isRecording || isManualRecording
   const isIdle = !anyRecording && !isProcessing
-  const isExpanded = isHovered || anyRecording || isProcessing
   const isActive = anyRecording || isProcessing
 
   const shouldShow =
@@ -255,7 +194,7 @@ const Pill = () => {
         align-items: center;
         justify-content: flex-end;
         pointer-events: none;
-        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
       }
     `
     document.head.appendChild(style)
@@ -467,34 +406,45 @@ const Pill = () => {
     })
   }
 
-  const processingLabel = isAgentMode
-    ? 'Agent...'
-    : currentMode === ItoMode.CONTEXT_AWARENESS
-      ? 'Analyzing...'
-      : 'Transcribing'
-
-  const getLineVariant = () => {
-    if (anyRecording || isProcessing) return 'recording'
-    if (isHovered) return 'hover'
-    return 'initial'
+  const getDimensions = () => {
+    if (anyRecording) return { w: RECORDING_WIDTH, h: RECORDING_HEIGHT }
+    if (isProcessing) return { w: THINKING_WIDTH, h: THINKING_HEIGHT }
+    if (isHovered && isIdle) return { w: HOVER_WIDTH, h: HOVER_HEIGHT }
+    return { w: IDLE_WIDTH, h: IDLE_HEIGHT }
   }
 
-  // Couleurs bleu et violet - pas de glow
-  const getBackground = () => {
-    if (anyRecording) {
-      // Bleu pendant recording
-      return 'linear-gradient(135deg, rgba(37,99,235,0.95) 0%, rgba(29,78,216,0.92) 100%)'
-    }
-    if (isProcessing) {
-      // Violet pendant processing
-      return 'linear-gradient(135deg, rgba(147,51,234,0.95) 0%, rgba(126,34,206,0.92) 100%)'
+  const dims = getDimensions()
+  const pillRadius = dims.h / 2
+  const isExpanded = dims.h > IDLE_HEIGHT
+
+  const getBgColor = () => {
+    if (anyRecording || isProcessing) return 'rgba(28,28,32,0.96)'
+    if (isHovered) return 'rgba(36,36,42,0.95)'
+    return 'rgba(140,140,155,0.55)'
+  }
+
+  const getShadow = () => {
+    if (anyRecording || isProcessing) {
+      return '0 2px 16px rgba(0,0,0,0.35), 0 0 0 0.5px rgba(180,185,195,0.1)'
     }
     if (isHovered) {
-      // Gris foncé au hover
-      return 'linear-gradient(135deg, rgba(45,45,55,0.95) 0%, rgba(35,35,45,0.92) 100%)'
+      return '0 2px 12px rgba(0,0,0,0.28), 0 0 0 0.5px rgba(180,185,195,0.08)'
     }
-    // Gris très foncé en idle
-    return 'linear-gradient(135deg, rgba(60,60,70,0.7) 0%, rgba(50,50,60,0.6) 100%)'
+    return '0 1px 6px rgba(0,0,0,0.18)'
+  }
+
+  const getBorder = () => {
+    if (anyRecording || isProcessing) return '1px solid rgba(180,185,195,0.18)'
+    if (isHovered) return '1px solid rgba(180,185,195,0.14)'
+    return '1px solid rgba(200,200,210,0.1)'
+  }
+
+  const contentAbsolute: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   }
 
   return (
@@ -519,10 +469,10 @@ const Pill = () => {
               gap: 8,
             }}
           >
-            {/* Label above pill */}
             <AnimatePresence mode="wait">
               {isHovered && isIdle && (
                 <motion.div
+                  key="label"
                   variants={labelFloatVariants}
                   initial="hidden"
                   animate="visible"
@@ -533,7 +483,7 @@ const Pill = () => {
                     style={{
                       fontSize: 11,
                       fontWeight: 500,
-                      color: 'rgba(255,255,255,0.6)',
+                      color: 'rgba(255,255,255,0.55)',
                       whiteSpace: 'nowrap',
                       userSelect: 'none',
                       letterSpacing: '0.3px',
@@ -545,13 +495,15 @@ const Pill = () => {
               )}
             </AnimatePresence>
 
-            {/* Pill wrapper - precise hitbox */}
             <div
-              style={{ position: 'relative' }}
+              style={{
+                position: 'relative',
+                padding: '10px 14px',
+                margin: '-10px -14px',
+              }}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              {/* Cancel button - red */}
               <AnimatePresence>
                 {isManualRecording && (
                   <motion.button
@@ -562,13 +514,13 @@ const Pill = () => {
                     onClick={handleCancel}
                     style={{
                       position: 'absolute',
-                      top: -10,
-                      right: -10,
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      background: '#ef4444',
-                      border: '2px solid rgba(255,255,255,0.3)',
+                      top: 0,
+                      right: 4,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      background: 'rgba(220,60,60,0.9)',
+                      border: '1.5px solid rgba(255,255,255,0.25)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -579,115 +531,127 @@ const Pill = () => {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                   >
-                    <X width={14} height={14} color="white" strokeWidth={2.5} />
+                    <X width={12} height={12} color="white" strokeWidth={2.5} />
                   </motion.button>
                 )}
               </AnimatePresence>
 
-              {/* Main Pill - sans glow, couleurs bleu/violet */}
               <motion.div
-                variants={idleLineVariants}
-                initial="initial"
-                animate={getLineVariant()}
+                initial={false}
+                animate={{
+                  width: dims.w,
+                  height: dims.h,
+                  borderRadius: pillRadius,
+                  backgroundColor: getBgColor(),
+                  boxShadow: getShadow(),
+                }}
+                transition={IOS_SPRING}
                 style={{
-                  background: getBackground(),
-                  border: '1px solid rgba(255,255,255,0.15)',
+                  border: getBorder(),
                   backdropFilter: blurValue,
                   WebkitBackdropFilter: blurValue,
                   cursor: isIdle ? 'pointer' : 'default',
                   overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   position: 'relative',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)', // Ombre simple, pas de glow
                 }}
                 onClick={handleClick}
               >
-                {/* Collapsed state - simple line */}
-                {!isExpanded && (
-                  <div
-                    style={{
-                      width: '40%',
-                      height: 3,
-                      borderRadius: 2,
-                      background: 'rgba(255,255,255,0.5)',
-                    }}
-                  />
-                )}
-
-                {/* Expanded state - full content */}
                 <AnimatePresence>
-                  {isExpanded && (
+                  {!isExpanded && (
                     <motion.div
-                      key="expanded"
-                      variants={contentRevealVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="exit"
+                      key="idle-line"
+                      initial={{ opacity: 0, scaleX: 0.5 }}
+                      animate={{ opacity: 1, scaleX: 1 }}
+                      exit={{ opacity: 0, scaleX: 0.6 }}
+                      transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                      style={contentAbsolute}
+                    >
+                      <div
+                        style={{
+                          width: '55%',
+                          height: 3,
+                          borderRadius: 1.5,
+                          background: 'linear-gradient(90deg, rgba(190,195,205,0.35) 0%, rgba(215,220,230,0.55) 50%, rgba(190,195,205,0.35) 100%)',
+                        }}
+                      />
+                    </motion.div>
+                  )}
+
+                  {isExpanded && anyRecording && (
+                    <motion.div
+                      key="recording-content"
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9, transition: CONTENT_EXIT }}
+                      transition={CONTENT_ENTER}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '0 14px',
-                        width: '100%',
-                        height: '100%',
+                        ...contentAbsolute,
+                        gap: 6,
+                        padding: '0 10px',
                       }}
                     >
-                      {/* Icons - GRANDES */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6,
+                          gap: 4,
                           flexShrink: 0,
                         }}
                       >
                         {appTarget?.iconBase64 ? (
                           <motion.img
-                            variants={iconPopVariants}
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={IOS_SPRING_SNAPPY}
                             draggable={false}
                             src={`data:image/png;base64,${appTarget.iconBase64}`}
                             style={{
-                              width: 24,
-                              height: 24,
+                              width: 20,
+                              height: 20,
                               borderRadius: 5,
                               flexShrink: 0,
                             }}
                           />
                         ) : (
-                          <motion.div variants={iconPopVariants}>
-                            <ItoIcon width={24} height={24} className="text-white" />
+                          <motion.div
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={IOS_SPRING_SNAPPY}
+                          >
+                            <ItoIcon width={18} height={18} className="text-white" />
                           </motion.div>
                         )}
-                        
+
                         {contextSource === 'screen' && screenThumbnail && (
                           <motion.img
-                            variants={iconPopVariants}
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={IOS_SPRING_SNAPPY}
                             draggable={false}
                             src={`data:image/png;base64,${screenThumbnail}`}
                             style={{
-                              width: 36,
-                              height: 22,
+                              width: 28,
+                              height: 18,
                               borderRadius: 3,
                               objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.25)',
+                              border: '1px solid rgba(255,255,255,0.15)',
                               flexShrink: 0,
                             }}
                           />
                         )}
-                        
+
                         {contextSource === 'selection' && (
                           <motion.span
-                            variants={iconPopVariants}
-                            style={{ fontSize: 16 }}
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={IOS_SPRING_SNAPPY}
+                            style={{ fontSize: 13 }}
                           >
                             📝
                           </motion.span>
                         )}
                       </div>
 
-                      {/* Center content */}
                       <div
                         style={{
                           flex: 1,
@@ -697,77 +661,84 @@ const Pill = () => {
                           minWidth: 0,
                         }}
                       >
-                        <AnimatePresence mode="wait">
-                          {isIdle ? (
-                            <motion.span
-                              key="idle-text"
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -5 }}
-                              transition={{ duration: 0.15 }}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: 'rgba(255,255,255,0.7)',
-                                whiteSpace: 'nowrap',
-                                letterSpacing: '0.2px',
-                              }}
-                            >
-                              Click to dictate
-                            </motion.span>
-                          ) : (
-                            <motion.div
-                              key="active-content"
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.95 }}
-                              transition={{ duration: 0.15 }}
+                        {isManualRecording ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <AudioWaveform
+                              audioLevel={currentAudioLevel}
+                              active
+                              width={60}
+                              height={RECORDING_HEIGHT}
+                              strokeColor="rgba(200,205,215,0.85)"
+                            />
+                            <motion.button
+                              onClick={handleStop}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 8,
+                                justifyContent: 'center',
+                                background: 'rgba(200,205,215,0.15)',
+                                border: '1px solid rgba(200,205,215,0.2)',
+                                borderRadius: 5,
+                                padding: '3px',
+                                cursor: 'pointer',
                               }}
                             >
-                              {isManualRecording ? (
-                                <>
-                                  <AudioWaveform
-                                    audioLevel={currentAudioLevel}
-                                    active
-                                    width={90}
-                                    height={EXPANDED_PILL_HEIGHT}
-                                  />
-                                  <motion.button
-                                    onClick={handleStop}
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      background: 'rgba(255,255,255,0.2)',
-                                      border: '1px solid rgba(255,255,255,0.3)',
-                                      borderRadius: 6,
-                                      padding: '4px',
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    <Square width={14} height={14} color="white" fill="currentColor" />
-                                  </motion.button>
-                                </>
-                              ) : anyRecording ? (
-                                <AudioWaveform
-                                  audioLevel={currentAudioLevel}
-                                  active
-                                  width={110}
-                                  height={EXPANDED_PILL_HEIGHT}
-                                />
-                              ) : isProcessing ? (
-                                <ProcessingStatusDisplay color="white" label={processingLabel} />
-                              ) : null}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                              <Square width={12} height={12} color="rgba(200,205,215,0.9)" fill="currentColor" />
+                            </motion.button>
+                          </div>
+                        ) : (
+                          <AudioWaveform
+                            audioLevel={currentAudioLevel}
+                            active
+                            width={80}
+                            height={RECORDING_HEIGHT}
+                            strokeColor="rgba(200,205,215,0.85)"
+                          />
+                        )}
                       </div>
+                    </motion.div>
+                  )}
+
+                  {isExpanded && isProcessing && !anyRecording && (
+                    <motion.div
+                      key="thinking-content"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.85, transition: CONTENT_EXIT }}
+                      transition={CONTENT_ENTER}
+                      style={contentAbsolute}
+                    >
+                      <ProcessingStatusDisplay color="rgba(200,205,215,0.9)" />
+                    </motion.div>
+                  )}
+
+                  {isExpanded && isIdle && isHovered && (
+                    <motion.div
+                      key="hover-content"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95, transition: CONTENT_EXIT }}
+                      transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                      style={{
+                        ...contentAbsolute,
+                        gap: 8,
+                        padding: '0 12px',
+                      }}
+                    >
+                      <ItoIcon width={16} height={16} className="text-white" style={{ opacity: 0.7, flexShrink: 0 }} />
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: 'rgba(200,205,215,0.7)',
+                          whiteSpace: 'nowrap',
+                          letterSpacing: '0.2px',
+                        }}
+                      >
+                        Click to dictate
+                      </span>
                     </motion.div>
                   )}
                 </AnimatePresence>

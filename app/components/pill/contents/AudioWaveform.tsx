@@ -11,45 +11,51 @@ export type AudioWaveformProps = {
 }
 
 const WAVE_CONFIG = [
-  { frequency: 0.8, multiplier: 1.6, phaseOffset: 0, opacity: 1.0 },
-  { frequency: 1.0, multiplier: 1.35, phaseOffset: 0.85, opacity: 0.78 },
-  { frequency: 1.25, multiplier: 1.05, phaseOffset: 1.7, opacity: 0.56 },
+  { frequency: 0.65, multiplier: 1.5, phaseOffset: 0, opacity: 0.95 },
+  { frequency: 0.85, multiplier: 1.2, phaseOffset: 0.7, opacity: 0.6 },
+  { frequency: 1.1, multiplier: 0.85, phaseOffset: 1.5, opacity: 0.35 },
 ]
 
-const LEVEL_SMOOTHING = 0.18
-const TARGET_DECAY_PER_FRAME = 0.985
-const PHASE_SPEED = 0.045
+const LEVEL_SMOOTHING = 0.14
+const TARGET_DECAY_PER_FRAME = 0.988
+const PHASE_SPEED = 0.035
 
-function createWavePath(
+function createSmoothWavePath(
   width: number,
   baseline: number,
   amplitude: number,
   frequency: number,
   phase: number,
 ): string {
-  const steps = Math.max(40, Math.round(width / 2))
-  const parts: string[] = []
+  const steps = Math.max(48, Math.round(width / 1.5))
+  const points: [number, number][] = []
   for (let i = 0; i <= steps; i++) {
     const x = (i / steps) * width
     const t = (i / steps) * Math.PI * 2 * frequency + phase
-    const y = baseline + Math.sin(t) * amplitude
-    parts.push(
-      i === 0
-        ? `M ${x.toFixed(2)} ${y.toFixed(2)}`
-        : `L ${x.toFixed(2)} ${y.toFixed(2)}`,
-    )
+    const envelope = Math.sin((i / steps) * Math.PI)
+    const y = baseline + Math.sin(t) * amplitude * envelope
+    points.push([x, y])
   }
-  return parts.join(' ')
+  if (points.length < 2) return `M 0 ${baseline} L ${width} ${baseline}`
+  let d = `M ${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const cx = (points[i][0] + points[i + 1][0]) / 2
+    const cy = (points[i][1] + points[i + 1][1]) / 2
+    d += ` Q ${points[i][0].toFixed(2)} ${points[i][1].toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)}`
+  }
+  const last = points[points.length - 1]
+  d += ` L ${last[0].toFixed(2)} ${last[1].toFixed(2)}`
+  return d
 }
 
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   audioLevel,
   active,
   processing = false,
-  width = 110,
+  width = 90,
   height = 34,
-  strokeColor = 'white',
-  strokeWidth = 1.6,
+  strokeColor = 'rgba(255,255,255,0.9)',
+  strokeWidth = 1.5,
 }) => {
   const pathRefs = useRef<(SVGPathElement | null)[]>([])
   const animRef = useRef<number>(0)
@@ -62,15 +68,14 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
   useEffect(() => {
     if (!active || audioLevel <= 0) return
-    const boosted = Math.min(1, Math.sqrt(audioLevel) * 1.35)
+    const boosted = Math.min(1, Math.sqrt(audioLevel) * 1.4)
     stateRef.current.targetLevel = Math.min(
       1,
-      stateRef.current.targetLevel * 0.25 + boosted * 0.75,
+      stateRef.current.targetLevel * 0.2 + boosted * 0.8,
     )
   }, [audioLevel, active])
 
   useEffect(() => {
-    // STOP animation completely when not active - saves CPU
     if (!active && !processing) {
       cancelAnimationFrame(animRef.current)
       stateRef.current.currentLevel = 0
@@ -84,7 +89,6 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     }
 
     const animate = (timestamp: number) => {
-      // Throttle to 30fps max to save CPU when active
       if (timestamp - lastRenderRef.current < 33) {
         animRef.current = requestAnimationFrame(animate)
         return
@@ -93,10 +97,10 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
       const s = stateRef.current
       const baseline = height / 2
-      const maxAmplitude = baseline * 0.8
+      const maxAmplitude = baseline * 0.75
 
       if (processing && !active) {
-        s.targetLevel = Math.max(s.targetLevel, 0.16)
+        s.targetLevel = Math.max(s.targetLevel, 0.14)
       }
 
       s.targetLevel *= TARGET_DECAY_PER_FRAME
@@ -107,7 +111,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         const el = pathRefs.current[i]
         if (!el) return
         const amp = s.currentLevel * maxAmplitude * wave.multiplier
-        const d = createWavePath(
+        const d = createSmoothWavePath(
           width,
           baseline,
           amp,
@@ -144,6 +148,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
           strokeWidth={strokeWidth}
           opacity={wave.opacity}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
       ))}
     </svg>
