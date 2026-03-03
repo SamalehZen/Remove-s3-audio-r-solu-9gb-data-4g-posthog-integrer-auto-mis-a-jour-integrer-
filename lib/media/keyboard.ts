@@ -35,7 +35,7 @@ let activeIsAgent = false
 let sessionStartTime: number | null = null
 let shortPressTimer: NodeJS.Timeout | null = null
 
-// Threshold for detecting a "short press" - visual bump only
+// Threshold for detecting a "short press" - no session started
 const SHORT_PRESS_THRESHOLD_MS = 80
 
 // Heartbeat monitoring state
@@ -344,7 +344,7 @@ async function handleKeyEventInMain(event: KeyEvent) {
       itoSessionManager.setMode(currentlyHeldShortcut.mode)
     }
   } else if (!currentlyHeldShortcut) {
-    // No shortcut detected - check duration and either show bump or complete
+    // No shortcut detected - check duration and complete or ignore
     if (activeShortcutId !== null) {
       const pressDuration = sessionStartTime ? Date.now() - sessionStartTime : 0
 
