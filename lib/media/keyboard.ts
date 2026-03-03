@@ -233,17 +233,6 @@ async function handleKeyEventInMain(event: KeyEvent) {
 
   // Handle shortcut activation and mode changes
   if (currentlyHeldShortcut) {
-    // IMMEDIATE: Send predictive UI update BEFORE session starts (0ms latency)
-    if (activeShortcutId === null) {
-      const pillWindow = getPillWindow()
-      if (pillWindow && !pillWindow.webContents.isDestroyed()) {
-        pillWindow.webContents.send('shortcut-predictive-activate', {
-          mode: currentlyHeldShortcut.mode,
-          isAgent: currentlyHeldShortcut.isAgent ?? false,
-        })
-      }
-    }
-
     if (activeShortcutId === null) {
       // Starting a new session
       activeShortcutId = currentlyHeldShortcut.id
@@ -280,12 +269,6 @@ async function handleKeyEventInMain(event: KeyEvent) {
   } else if (!currentlyHeldShortcut) {
     // No shortcut detected - cancel pending activation or deactivate active shortcut
     if (activeShortcutId !== null) {
-      // IMMEDIATE: Send predictive UI update BEFORE session stops
-      const pillWindow = getPillWindow()
-      if (pillWindow && !pillWindow.webContents.isDestroyed()) {
-        pillWindow.webContents.send('shortcut-predictive-deactivate')
-      }
-
       // Shortcut released - deactivate immediately (no debounce on release)
       activeShortcutId = null
       console.info('lib Shortcut DEACTIVATED, stopping recording...')

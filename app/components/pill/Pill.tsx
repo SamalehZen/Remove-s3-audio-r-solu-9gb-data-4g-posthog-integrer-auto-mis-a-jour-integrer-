@@ -76,19 +76,14 @@ const Pill = () => {
   const [screenThumbnail, setScreenThumbnail] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
   const isRecordingRef = useRef(false)
-  const hasBeenShownRef = useRef(false)
   const stylesInjectedRef = useRef(false)
-  const [isKeyboardActive, setIsKeyboardActive] = useState(false)
-  const keyboardModeRef = useRef<ItoMode | null>(null)
-  // Animation key to force re-render when keyboard activates
-  const [animationKey, setAnimationKey] = useState(0)
 
-  // Ultra-fast animations for keyboard (80ms) vs hover (200ms)
-  const isAnyActive = isRecording || isManualRecording || isProcessing || isKeyboardActive
+  // Animation duration: fast (80ms) when recording/processing, normal (200ms) for hover
+  const isAnyActive = isRecording || isManualRecording || isProcessing
   const animDuration = config.animationDurationMultiplier === 0
     ? '0s'
     : isAnyActive
-      ? '0.08s' // Ultra-fast for keyboard
+      ? '0.08s' // Fast for recording
       : '0.2s'  // Normal for hover
   const blurValue = config.enableBackdropBlur ? 'blur(14px)' : 'none'
   // Ultra-fast content transition for keyboard (50ms) vs hover (150ms)
@@ -99,17 +94,7 @@ const Pill = () => {
       : '0.15s' // Normal for hover
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
 
-  // Pre-warmed flag to prevent first-touch lag
-  const isPreWarmedRef = useRef(false)
-  useEffect(() => {
-    if (isPreWarmedRef.current) return
-    isPreWarmedRef.current = true
-    // Pre-warm by forcing a micro-transition on mount
-    requestAnimationFrame(() => {
-      // This triggers the GPU to prepare the blur shader
-      document.body.style.setProperty('--pill-pre-warmed', 'true')
-    })
-  }, [])
+
 
   useEffect(() => {
     const idleId = requestIdleCallback(() => soundPlayer.init(), { timeout: 2000 })
@@ -150,46 +135,7 @@ const Pill = () => {
     interactionSoundsRef.current = interactionSounds
   }, [interactionSounds])
 
-  // Listen for predictive keyboard events for instant UI feedback
-  useEffect(() => {
-    const unsubPredictive = window.api.on(
-      'shortcut-predictive-activate',
-      ({ mode, isAgent }: { mode: ItoMode; isAgent: boolean }) => {
-        // IMMEDIATE: Show pill before recording actually starts
-        setIsKeyboardActive(true)
-        // Force animation to restart by incrementing key
-        setAnimationKey(prev => prev + 1)
-        keyboardModeRef.current = mode
-        setCurrentMode(mode)
-        setIsAgentMode(isAgent)
 
-        // Play sound immediately for instant feedback
-        if (interactionSoundsRef.current) {
-          soundPlayer.play('recording-start')
-        }
-
-        analytics.track(ANALYTICS_EVENTS.RECORDING_STARTED, {
-          is_recording: true,
-          mode,
-          source: 'keyboard',
-        })
-      },
-    )
-
-    const unsubPredictiveStop = window.api.on(
-      'shortcut-predictive-deactivate',
-      () => {
-        // IMMEDIATE: Start fade out before recording actually stops
-        setIsKeyboardActive(false)
-        keyboardModeRef.current = null
-      },
-    )
-
-    return () => {
-      unsubPredictive()
-      unsubPredictiveStop()
-    }
-  }, [])
 
   useEffect(() => {
     const unsubRecording = window.api.on(
@@ -243,12 +189,9 @@ const Pill = () => {
           setCurrentMode(state.mode)
         }
 
-        // Sound and analytics are handled by predictive events for instant feedback
-        // Only handle here for manual recording or if predictive missed it
         if (
           interactionSoundsRef.current &&
-          wasRecording !== state.isRecording &&
-          !isKeyboardActive // Avoid double sound for keyboard shortcuts
+          wasRecording !== state.isRecording
         ) {
           soundPlayer.play(
             state.isRecording ? 'recording-start' : 'recording-stop',
@@ -257,8 +200,7 @@ const Pill = () => {
 
         if (
           !isManualRecordingRef.current &&
-          wasRecording !== state.isRecording &&
-          !isKeyboardActive // Analytics already tracked by predictive event
+          wasRecording !== state.isRecording
         ) {
           const analyticsEvent = state.isRecording
             ? ANALYTICS_EVENTS.RECORDING_STARTED
@@ -346,27 +288,23 @@ const Pill = () => {
   }, [])
 
   useEffect(() => {
-    if (!isRecording && !isManualRecording && !isProcessing && !isKeyboardActive) {
+    if (!isRecording && !isManualRecording && !isProcessing) {
       setAppTarget(null)
       setContextSource(null)
       setScreenThumbnail(null)
       setCurrentMode(undefined)
     }
-  }, [isRecording, isManualRecording, isProcessing, isKeyboardActive])
+  }, [isRecording, isManualRecording, isProcessing])
 
-  const anyRecording = isRecording || isManualRecording || isKeyboardActive
+  const anyRecording = isRecording || isManualRecording
   const isIdle = !anyRecording && !isProcessing
-  const isExpanded = isHovered || anyRecording || isProcessing || isKeyboardActive
+  const isExpanded = isHovered || anyRecording || isProcessing
 
-  const isActive = anyRecording || isProcessing || isKeyboardActive
+  const isActive = anyRecording || isProcessing
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
       onboardingCompleted) &&
-    (isActive || showItoBarAlways || isHovered || isKeyboardActive)
-
-  if (shouldShow) {
-    hasBeenShownRef.current = true
-  }
+    (isActive || showItoBarAlways || isHovered)
 
   const handleMouseEnter = () => {
     setIsHovered(true)
@@ -511,13 +449,10 @@ const Pill = () => {
       >
         <div
           style={{
-            opacity: !hasBeenShownRef.current && !shouldShow ? 0 : undefined,
-            animation:
-              hasBeenShownRef.current || shouldShow
-                ? shouldShow
-                  ? `pill-fadeIn ${animDuration} ease-out forwards`
-                  : `pill-fadeOut ${animDuration} ease-in forwards`
-                : 'none',
+            opacity: shouldShow ? undefined : 0,
+            animation: shouldShow
+              ? `pill-fadeIn ${animDuration} ease-out forwards`
+              : `pill-fadeOut ${animDuration} ease-in forwards`,
             pointerEvents: shouldShow ? 'auto' : 'none',
           }}
         >
