@@ -12,6 +12,7 @@ import { useAudioStore } from '@/app/store/useAudioStore'
 import { analytics, ANALYTICS_EVENTS } from '../analytics'
 import { ItoIcon } from '../icons/ItoIcon'
 import { soundPlayer } from '@/app/utils/soundPlayer'
+import { useKeyboardPredictiveStore } from '@/app/store/useKeyboardPredictiveStore'
 import type {
   RecordingStatePayload,
   ProcessingStatePayload,
@@ -78,12 +79,36 @@ const Pill = () => {
   const isRecordingRef = useRef(false)
   const hasBeenShownRef = useRef(false)
   const stylesInjectedRef = useRef(false)
+  const [isKeyboardActive, setIsKeyboardActive] = useState(false)
+  const keyboardModeRef = useRef<ItoMode | null>(null)
 
-  const animDuration = config.animationDurationMultiplier === 0 ? '0s' : '0.2s'
+  // Ultra-fast animations for keyboard (80ms) vs hover (200ms)
+  const isAnyActive = isRecording || isManualRecording || isProcessing || isKeyboardActive
+  const animDuration = config.animationDurationMultiplier === 0
+    ? '0s'
+    : isAnyActive
+      ? '0.08s' // Ultra-fast for keyboard
+      : '0.2s'  // Normal for hover
   const blurValue = config.enableBackdropBlur ? 'blur(14px)' : 'none'
-  const contentTransition =
-    config.animationDurationMultiplier === 0 ? '0s' : '0.15s'
+  // Ultra-fast content transition for keyboard (50ms) vs hover (150ms)
+  const contentTransition = config.animationDurationMultiplier === 0
+    ? '0s'
+    : isAnyActive
+      ? '0.05s' // Instant for keyboard
+      : '0.15s' // Normal for hover
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
+
+  // Pre-warmed flag to prevent first-touch lag
+  const isPreWarmedRef = useRef(false)
+  useEffect(() => {
+    if (isPreWarmedRef.current) return
+    isPreWarmedRef.current = true
+    // Pre-warm by forcing a micro-transition on mount
+    requestAnimationFrame(() => {
+      // This triggers the GPU to prepare the blur shader
+      document.body.style.setProperty('--pill-pre-warmed', 'true')
+    })
+  }, [])
 
   useEffect(() => {
     const idleId = requestIdleCallback(() => soundPlayer.init(), { timeout: 2000 })
@@ -123,6 +148,45 @@ const Pill = () => {
   useEffect(() => {
     interactionSoundsRef.current = interactionSounds
   }, [interactionSounds])
+
+  // Listen for predictive keyboard events for instant UI feedback
+  useEffect(() => {
+    const unsubPredictive = window.api.on(
+      'shortcut-predictive-activate',
+      ({ mode, isAgent }: { mode: ItoMode; isAgent: boolean }) => {
+        // IMMEDIATE: Show pill before recording actually starts
+        setIsKeyboardActive(true)
+        keyboardModeRef.current = mode
+        setCurrentMode(mode)
+        setIsAgentMode(isAgent)
+
+        // Play sound immediately for instant feedback
+        if (interactionSoundsRef.current) {
+          soundPlayer.play('recording-start')
+        }
+
+        analytics.track(ANALYTICS_EVENTS.RECORDING_STARTED, {
+          is_recording: true,
+          mode,
+          source: 'keyboard',
+        })
+      },
+    )
+
+    const unsubPredictiveStop = window.api.on(
+      'shortcut-predictive-deactivate',
+      () => {
+        // IMMEDIATE: Start fade out before recording actually stops
+        setIsKeyboardActive(false)
+        keyboardModeRef.current = null
+      },
+    )
+
+    return () => {
+      unsubPredictive()
+      unsubPredictiveStop()
+    }
+  }, [])
 
   useEffect(() => {
     const unsubRecording = window.api.on(
@@ -176,9 +240,12 @@ const Pill = () => {
           setCurrentMode(state.mode)
         }
 
+        // Sound and analytics are handled by predictive events for instant feedback
+        // Only handle here for manual recording or if predictive missed it
         if (
           interactionSoundsRef.current &&
-          wasRecording !== state.isRecording
+          wasRecording !== state.isRecording &&
+          !isKeyboardActive // Avoid double sound for keyboard shortcuts
         ) {
           soundPlayer.play(
             state.isRecording ? 'recording-start' : 'recording-stop',
@@ -187,7 +254,8 @@ const Pill = () => {
 
         if (
           !isManualRecordingRef.current &&
-          wasRecording !== state.isRecording
+          wasRecording !== state.isRecording &&
+          !isKeyboardActive // Analytics already tracked by predictive event
         ) {
           const analyticsEvent = state.isRecording
             ? ANALYTICS_EVENTS.RECORDING_STARTED
@@ -275,23 +343,23 @@ const Pill = () => {
   }, [])
 
   useEffect(() => {
-    if (!isRecording && !isManualRecording && !isProcessing) {
+    if (!isRecording && !isManualRecording && !isProcessing && !isKeyboardActive) {
       setAppTarget(null)
       setContextSource(null)
       setScreenThumbnail(null)
       setCurrentMode(undefined)
     }
-  }, [isRecording, isManualRecording, isProcessing])
+  }, [isRecording, isManualRecording, isProcessing, isKeyboardActive])
 
-  const anyRecording = isRecording || isManualRecording
+  const anyRecording = isRecording || isManualRecording || isKeyboardActive
   const isIdle = !anyRecording && !isProcessing
-  const isExpanded = isHovered || anyRecording || isProcessing
+  const isExpanded = isHovered || anyRecording || isProcessing || isKeyboardActive
 
-  const isActive = anyRecording || isProcessing
+  const isActive = anyRecording || isProcessing || isKeyboardActive
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
       onboardingCompleted) &&
-    (isActive || showItoBarAlways || isHovered)
+    (isActive || showItoBarAlways || isHovered || isKeyboardActive)
 
   if (shouldShow) {
     hasBeenShownRef.current = true
