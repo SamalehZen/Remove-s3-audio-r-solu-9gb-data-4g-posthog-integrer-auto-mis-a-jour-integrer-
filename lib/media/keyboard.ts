@@ -7,7 +7,6 @@ import { itoSessionManager } from '../main/itoSessionManager'
 import { agentSessionManager } from '../main/agent/agentSessionManager'
 import { KeyName, keyNameMap, normalizeLegacyKey } from '../types/keyboard'
 import { ItoMode } from '@/app/generated/ito_pb'
-import { IPC_EVENTS } from '../types/ipc'
 
 interface KeyEvent {
   type: 'keydown' | 'keyup'
@@ -357,19 +356,9 @@ async function handleKeyEventInMain(event: KeyEvent) {
 
       // Check if this was a "short press" (quick tap < 80ms)
       if (pressDuration < SHORT_PRESS_THRESHOLD_MS) {
-        // Short press: Just show visual bump, no session started
         console.info(
-          `lib Shortcut RELEASED after ${pressDuration}ms (short press) - bump only...`,
+          `lib Shortcut RELEASED after ${pressDuration}ms (short press) - ignored`,
         )
-
-        // Send tap feedback to all windows for visual bump animation
-        BrowserWindow.getAllWindows().forEach(window => {
-          if (!window.webContents.isDestroyed()) {
-            window.webContents.send(IPC_EVENTS.TAP_FEEDBACK, {
-              duration: pressDuration,
-            })
-          }
-        })
       } else {
         // Normal/long press: Complete session normally
         console.info('lib Shortcut DEACTIVATED, stopping recording...')

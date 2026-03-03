@@ -16,7 +16,6 @@ import { soundPlayer } from '@/app/utils/soundPlayer'
 import type {
   RecordingStatePayload,
   ProcessingStatePayload,
-  TapFeedbackPayload,
 } from '@/lib/types/ipc'
 import type { AppTarget } from '@/app/store/useAppStylingStore'
 import { ItoMode } from '@/app/generated/ito_pb'
@@ -95,17 +94,6 @@ const idleLineVariants = {
       stiffness: 500,
       damping: 20,
       mass: 0.6,
-    },
-  },
-  bump: {
-    width: 110,
-    height: 26,
-    borderRadius: 13,
-    transition: {
-      type: 'spring',
-      stiffness: 600,
-      damping: 15,
-      mass: 0.4,
     },
   },
   shrink: {
@@ -244,9 +232,7 @@ const Pill = () => {
   >(null)
   const [screenThumbnail, setScreenThumbnail] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
-  const [isBump, setIsBump] = useState(false)
   const [isShrinking, setIsShrinking] = useState(false)
-  const bumpTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const shrinkTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const wasProcessingRef = useRef(false)
   const isRecordingRef = useRef(false)
@@ -256,9 +242,9 @@ const Pill = () => {
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
 
   const anyRecording = isRecording || isManualRecording
-  const isIdle = !anyRecording && !isProcessing && !isBump && !isShrinking
+  const isIdle = !anyRecording && !isProcessing && !isShrinking
   const isExpanded = isHovered || anyRecording || isProcessing
-  const isActive = anyRecording || isProcessing || isBump || isShrinking
+  const isActive = anyRecording || isProcessing || isShrinking
 
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
@@ -456,20 +442,6 @@ const Pill = () => {
       }
     })
 
-    const unsubTapFeedback = window.api.on(
-      'tap-feedback',
-      (_payload: TapFeedbackPayload) => {
-        if (bumpTimeoutRef.current) {
-          clearTimeout(bumpTimeoutRef.current)
-        }
-        setIsBump(true)
-        bumpTimeoutRef.current = setTimeout(() => {
-          setIsBump(false)
-          bumpTimeoutRef.current = null
-        }, 300)
-      },
-    )
-
     return () => {
       unsubRecording()
       unsubProcessing()
@@ -477,10 +449,6 @@ const Pill = () => {
       unsubSettings()
       unsubOnboarding()
       unsubUserAuth()
-      unsubTapFeedback()
-      if (bumpTimeoutRef.current) {
-        clearTimeout(bumpTimeoutRef.current)
-      }
       if (shrinkTimeoutRef.current) {
         clearTimeout(shrinkTimeoutRef.current)
       }
@@ -488,13 +456,13 @@ const Pill = () => {
   }, [])
 
   useEffect(() => {
-    if (!isRecording && !isManualRecording && !isProcessing && !isBump && !isShrinking) {
+    if (!isRecording && !isManualRecording && !isProcessing && !isShrinking) {
       setAppTarget(null)
       setContextSource(null)
       setScreenThumbnail(null)
       setCurrentMode(undefined)
     }
-  }, [isRecording, isManualRecording, isProcessing, isBump, isShrinking])
+  }, [isRecording, isManualRecording, isProcessing, isShrinking])
 
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true)
@@ -544,7 +512,6 @@ const Pill = () => {
   const getLineVariant = () => {
     if (anyRecording || isProcessing) return 'recording'
     if (isShrinking) return 'shrink'
-    if (isBump) return 'bump'
     if (isHovered) return 'hover'
     return 'initial'
   }
