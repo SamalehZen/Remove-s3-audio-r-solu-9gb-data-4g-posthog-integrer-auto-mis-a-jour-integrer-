@@ -147,21 +147,54 @@ fn is_key_in_hotkeys(key_name: &str) -> bool {
     unsafe {
         REGISTERED_HOTKEYS.iter().any(|hotkey| {
             hotkey.keys.iter().any(|k| {
-                // Normalize key names for comparison
-                let normalized = match k.as_str() {
+                // Normalize key names for comparison (handle different naming conventions)
+                let registered = k.as_str();
+                let current = key_name;
+
+                // Direct match first
+                if registered == current {
+                    return true;
+                }
+
+                // Normalize registered key name to match rdev's key names
+                let normalized_registered = match registered {
                     "control-left" => "ControlLeft",
                     "control-right" => "ControlRight",
                     "command-left" => "MetaLeft",
                     "command-right" => "MetaRight",
                     "shift-left" => "ShiftLeft",
                     "shift-right" => "ShiftRight",
-                    "option-left" => "AltLeft",
-                    "option-right" => "AltRight",
+                    "option-left" | "alt-left" => "AltLeft",
+                    "option-right" | "alt-right" => "AltRight",
                     "fn" => "Function",
                     "space" => "Space",
-                    _ => k,
+                    "alt" => "Alt", // Alt alone (any side)
+                    "control" | "ctrl" => "Control", // Control alone (any side)
+                    "shift" => "Shift",
+                    "command" | "win" | "windows" | "meta" => "Meta",
+                    _ => registered,
                 };
-                normalized == key_name
+
+                // Check if the normalized name matches the current key
+                // Also handle cases where key might have Left/Right suffix
+                if normalized_registered == current {
+                    return true;
+                }
+                if normalized_registered == "Alt" && (current == "AltLeft" || current == "AltRight" || current == "LAlt" || current == "RAlt") {
+                    return true;
+                }
+                if normalized_registered == "Control" && (current == "ControlLeft" || current == "ControlRight") {
+                    return true;
+                }
+                if normalized_registered == "Shift" && (current == "ShiftLeft" || current == "ShiftRight") {
+                    return true;
+                }
+                if normalized_registered == "Meta" && (current == "MetaLeft" || current == "MetaRight" || current == "CommandLeft" || current == "CommandRight") {
+                    return true;
+                }
+
+                // Check if the registered key (without normalization) matches
+                registered == current
             })
         })
     }
