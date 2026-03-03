@@ -12,7 +12,6 @@ import { useAudioStore } from '@/app/store/useAudioStore'
 import { analytics, ANALYTICS_EVENTS } from '../analytics'
 import { ItoIcon } from '../icons/ItoIcon'
 import { soundPlayer } from '@/app/utils/soundPlayer'
-import { useKeyboardPredictiveStore } from '@/app/store/useKeyboardPredictiveStore'
 import type {
   RecordingStatePayload,
   ProcessingStatePayload,
