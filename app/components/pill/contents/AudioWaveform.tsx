@@ -58,6 +58,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     currentLevel: 0,
     targetLevel: 0,
   })
+  const lastRenderRef = useRef(0)
 
   useEffect(() => {
     if (!active || audioLevel <= 0) return
@@ -69,6 +70,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   }, [audioLevel, active])
 
   useEffect(() => {
+    // STOP animation completely when not active - saves CPU
     if (!active && !processing) {
       cancelAnimationFrame(animRef.current)
       stateRef.current.currentLevel = 0
@@ -81,7 +83,14 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       return
     }
 
-    const animate = () => {
+    const animate = (timestamp: number) => {
+      // Throttle to 30fps max to save CPU when active
+      if (timestamp - lastRenderRef.current < 33) {
+        animRef.current = requestAnimationFrame(animate)
+        return
+      }
+      lastRenderRef.current = timestamp
+
       const s = stateRef.current
       const baseline = height / 2
       const maxAmplitude = baseline * 0.8
