@@ -80,6 +80,8 @@ const Pill = () => {
   const stylesInjectedRef = useRef(false)
   const [isKeyboardActive, setIsKeyboardActive] = useState(false)
   const keyboardModeRef = useRef<ItoMode | null>(null)
+  // Animation key to force re-render when keyboard activates
+  const [animationKey, setAnimationKey] = useState(0)
 
   // Ultra-fast animations for keyboard (80ms) vs hover (200ms)
   const isAnyActive = isRecording || isManualRecording || isProcessing || isKeyboardActive
@@ -155,6 +157,8 @@ const Pill = () => {
       ({ mode, isAgent }: { mode: ItoMode; isAgent: boolean }) => {
         // IMMEDIATE: Show pill before recording actually starts
         setIsKeyboardActive(true)
+        // Force animation to restart by incrementing key
+        setAnimationKey(prev => prev + 1)
         keyboardModeRef.current = mode
         setCurrentMode(mode)
         setIsAgentMode(isAgent)
