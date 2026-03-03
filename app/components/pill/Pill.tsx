@@ -7,7 +7,6 @@ import {
   useOnboardingStore,
   ONBOARDING_CATEGORIES,
 } from '../../store/useOnboardingStore'
-import { ProcessingStatusDisplay } from './contents/AudioBarsBase'
 import { AudioWaveform } from './contents/AudioWaveform'
 import { useAudioStore } from '@/app/store/useAudioStore'
 import { analytics, ANALYTICS_EVENTS } from '../analytics'
@@ -20,10 +19,13 @@ import type {
 import type { AppTarget } from '@/app/store/useAppStylingStore'
 import { ItoMode } from '@/app/generated/ito_pb'
 
-const IDLE_PILL_WIDTH = 80
-const IDLE_PILL_HEIGHT = 20
-const EXPANDED_PILL_WIDTH = 180
-const EXPANDED_PILL_HEIGHT = 36
+const IDLE_PILL_WIDTH = 40
+const IDLE_PILL_HEIGHT = 8
+const EXPANDED_PILL_WIDTH = 130
+const EXPANDED_PILL_HEIGHT = 34
+const THINKING_PILL_WIDTH = 45
+const THINKING_PILL_HEIGHT = 34
+const SILVER = 'rgba(200, 200, 210, 0.9)'
 
 function getBarUpdateInterval(): number {
   const { activeTier } = usePerformanceStore.getState()
@@ -64,7 +66,7 @@ const idleLineVariants = {
   initial: {
     width: IDLE_PILL_WIDTH,
     height: IDLE_PILL_HEIGHT,
-    borderRadius: 10,
+    borderRadius: 4,
     transition: {
       type: 'spring',
       stiffness: 600,
@@ -75,7 +77,7 @@ const idleLineVariants = {
   hover: {
     width: EXPANDED_PILL_WIDTH,
     height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 18,
+    borderRadius: 17,
     transition: {
       type: 'spring',
       stiffness: 400,
@@ -86,7 +88,7 @@ const idleLineVariants = {
   recording: {
     width: EXPANDED_PILL_WIDTH,
     height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 18,
+    borderRadius: 17,
     transition: {
       type: 'spring',
       stiffness: 500,
@@ -94,10 +96,10 @@ const idleLineVariants = {
       mass: 0.6,
     },
   },
-  shrink: {
-    width: 24,
-    height: 4,
-    borderRadius: 2,
+  thinking: {
+    width: THINKING_PILL_WIDTH,
+    height: THINKING_PILL_HEIGHT,
+    borderRadius: 17,
     transition: {
       type: 'spring',
       stiffness: 500,
@@ -106,6 +108,32 @@ const idleLineVariants = {
     },
   },
 }
+
+const ThinkingDots = () => (
+  <div style={{ display: 'flex', gap: 5, alignItems: 'center', justifyContent: 'center' }}>
+    {[0, 1, 2].map(i => (
+      <motion.div
+        key={i}
+        animate={{
+          y: [0, -5, 0],
+          opacity: [0.35, 1, 0.35],
+        }}
+        transition={{
+          duration: 0.8,
+          repeat: Infinity,
+          delay: i * 0.2,
+          ease: 'easeInOut',
+        }}
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: SILVER,
+        }}
+      />
+    ))}
+  </div>
+)
 
 const contentRevealVariants = {
   hidden: {
@@ -205,7 +233,6 @@ const Pill = () => {
   const [isRecording, setIsRecording] = useState(false)
   const [isManualRecording, setIsManualRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isAgentMode, setIsAgentMode] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const isManualRecordingRef = useRef(false)
   const [interactionSounds, setInteractionSoundsLocal] = useState(
@@ -238,7 +265,7 @@ const Pill = () => {
 
   const anyRecording = isRecording || isManualRecording
   const isIdle = !anyRecording && !isProcessing
-  const isExpanded = isHovered || anyRecording
+  const isExpanded = isHovered || anyRecording || isProcessing
   const isActive = anyRecording || isProcessing
 
   const shouldShow =
@@ -372,12 +399,6 @@ const Pill = () => {
       'processing-state-update',
       (state: ProcessingStatePayload) => {
         setIsProcessing(state.isProcessing)
-        if (state.isAgent !== undefined) {
-          setIsAgentMode(state.isAgent)
-        }
-        if (!state.isProcessing) {
-          setIsAgentMode(false)
-        }
       },
     )
 
@@ -483,15 +504,9 @@ const Pill = () => {
     })
   }
 
-  const processingLabel = isAgentMode
-    ? 'Agent...'
-    : currentMode === ItoMode.CONTEXT_AWARENESS
-      ? 'Analyzing...'
-      : 'Transcribing'
-
   const getLineVariant = () => {
     if (anyRecording) return 'recording'
-    if (isProcessing) return 'shrink'
+    if (isProcessing) return 'thinking'
     if (isHovered) return 'hover'
     return 'initial'
   }
@@ -621,19 +636,17 @@ const Pill = () => {
                 }}
                 onClick={handleClick}
               >
-                {/* Collapsed state - simple line */}
                 {!isExpanded && (
                   <div
                     style={{
-                      width: '40%',
-                      height: 3,
-                      borderRadius: 2,
-                      background: 'rgba(255,255,255,0.5)',
+                      width: '60%',
+                      height: 2,
+                      borderRadius: 1,
+                      background: 'rgba(255,255,255,0.45)',
                     }}
                   />
                 )}
 
-                {/* Expanded state - full content */}
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div
@@ -645,146 +658,117 @@ const Pill = () => {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 10,
-                        padding: '0 14px',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '0 10px',
                         width: '100%',
                         height: '100%',
                       }}
                     >
-                      {/* Icons - GRANDES */}
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {appTarget?.iconBase64 ? (
-                          <motion.img
-                            variants={iconPopVariants}
-                            draggable={false}
-                            src={`data:image/png;base64,${appTarget.iconBase64}`}
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 5,
-                              flexShrink: 0,
-                            }}
-                          />
-                        ) : (
-                          <motion.div variants={iconPopVariants}>
-                            <ItoIcon width={24} height={24} className="text-white" />
-                          </motion.div>
-                        )}
-                        
-                        {contextSource === 'screen' && screenThumbnail && (
-                          <motion.img
-                            variants={iconPopVariants}
-                            draggable={false}
-                            src={`data:image/png;base64,${screenThumbnail}`}
-                            style={{
-                              width: 36,
-                              height: 22,
-                              borderRadius: 3,
-                              objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.25)',
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        
-                        {contextSource === 'selection' && (
-                          <motion.span
-                            variants={iconPopVariants}
-                            style={{ fontSize: 16 }}
-                          >
-                            📝
-                          </motion.span>
-                        )}
-                      </div>
-
-                      {/* Center content */}
-                      <div
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          minWidth: 0,
-                        }}
-                      >
-                        <AnimatePresence mode="wait">
-                          {isIdle ? (
-                            <motion.span
-                              key="idle-text"
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -5 }}
-                              transition={{ duration: 0.15 }}
+                      {isProcessing && !anyRecording ? (
+                        <ThinkingDots />
+                      ) : (
+                        <>
+                          {appTarget?.iconBase64 ? (
+                            <motion.img
+                              variants={iconPopVariants}
+                              draggable={false}
+                              src={`data:image/png;base64,${appTarget.iconBase64}`}
                               style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: 'rgba(255,255,255,0.7)',
-                                whiteSpace: 'nowrap',
-                                letterSpacing: '0.2px',
+                                width: 20,
+                                height: 20,
+                                borderRadius: 4,
+                                flexShrink: 0,
                               }}
-                            >
-                              Click to dictate
-                            </motion.span>
-                          ) : (
-                            <motion.div
-                              key="active-content"
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.95 }}
-                              transition={{ duration: 0.15 }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                              }}
-                            >
-                              {isManualRecording ? (
-                                <>
-                                  <AudioWaveform
-                                    audioLevel={currentAudioLevel}
-                                    active
-                                    width={90}
-                                    height={EXPANDED_PILL_HEIGHT}
-                                  />
-                                  <motion.button
-                                    onClick={handleStop}
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      background: 'rgba(255,255,255,0.2)',
-                                      border: '1px solid rgba(255,255,255,0.3)',
-                                      borderRadius: 6,
-                                      padding: '4px',
-                                      cursor: 'pointer',
-                                    }}
-                                  >
-                                    <Square width={14} height={14} color="white" fill="currentColor" />
-                                  </motion.button>
-                                </>
-                              ) : anyRecording ? (
-                                <AudioWaveform
-                                  audioLevel={currentAudioLevel}
-                                  active
-                                  width={110}
-                                  height={EXPANDED_PILL_HEIGHT}
-                                />
-                              ) : isProcessing ? (
-                                <ProcessingStatusDisplay color="white" label={processingLabel} />
-                              ) : null}
+                            />
+                          ) : !isIdle ? (
+                            <motion.div variants={iconPopVariants} style={{ flexShrink: 0 }}>
+                              <ItoIcon width={20} height={20} className="text-white" />
                             </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                          ) : null}
+
+                          <div
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: 0,
+                            }}
+                          >
+                            <AnimatePresence mode="wait">
+                              {isIdle ? (
+                                <motion.span
+                                  key="idle-text"
+                                  initial={{ opacity: 0, y: 5 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -5 }}
+                                  transition={{ duration: 0.15 }}
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    color: 'rgba(255,255,255,0.65)',
+                                    whiteSpace: 'nowrap',
+                                    letterSpacing: '0.2px',
+                                  }}
+                                >
+                                  Click to dictate
+                                </motion.span>
+                              ) : (
+                                <motion.div
+                                  key="active-content"
+                                  initial={{ opacity: 0, scale: 0.9 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.15 }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                  }}
+                                >
+                                  {isManualRecording ? (
+                                    <>
+                                      <AudioWaveform
+                                        audioLevel={currentAudioLevel}
+                                        active
+                                        width={52}
+                                        height={28}
+                                        strokeColor={SILVER}
+                                      />
+                                      <motion.button
+                                        onClick={handleStop}
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        style={{
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          background: 'rgba(255,255,255,0.15)',
+                                          border: '1px solid rgba(255,255,255,0.2)',
+                                          borderRadius: 6,
+                                          padding: '3px',
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        <Square width={12} height={12} color={SILVER} fill="currentColor" />
+                                      </motion.button>
+                                    </>
+                                  ) : anyRecording ? (
+                                    <AudioWaveform
+                                      audioLevel={currentAudioLevel}
+                                      active
+                                      width={78}
+                                      height={28}
+                                      strokeColor={SILVER}
+                                    />
+                                  ) : null}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
