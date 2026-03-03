@@ -617,7 +617,7 @@ const Pill = () => {
                 )}
               </AnimatePresence>
 
-              {/* Main Pill - sans glow, couleurs neutres */}
+              {/* Main Pill - sans glow */}
               <motion.div
                 variants={idleLineVariants}
                 initial="initial"
