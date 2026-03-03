@@ -196,12 +196,24 @@ async function handleKeyEventInMain(event: KeyEvent) {
 
   if (!isShortcutGloballyEnabled) {
     if (activeShortcutId !== null) {
-      activeShortcutId = null
-      if (activeIsAgent) {
-        agentSessionManager.completeSession()
-      } else {
-        itoSessionManager.completeSession()
+      // Clean up pending short press timer
+      if (shortPressTimer) {
+        clearTimeout(shortPressTimer)
+        shortPressTimer = null
       }
+
+      // Only complete session if it was actually started (past threshold)
+      const pressDuration = sessionStartTime ? Date.now() - sessionStartTime : 0
+      if (pressDuration >= SHORT_PRESS_THRESHOLD_MS) {
+        if (activeIsAgent) {
+          agentSessionManager.completeSession()
+        } else {
+          itoSessionManager.completeSession()
+        }
+      }
+
+      activeShortcutId = null
+      sessionStartTime = null
       activeIsAgent = false
     }
     return
@@ -295,7 +307,36 @@ async function handleKeyEventInMain(event: KeyEvent) {
         )
         return
       }
-      // Different shortcut detected while already recording - change mode
+
+      // If still in the short-press window, restart the timer with the new shortcut
+      if (shortPressTimer) {
+        clearTimeout(shortPressTimer)
+        shortPressTimer = null
+
+        activeShortcutId = currentlyHeldShortcut.id
+        activeIsAgent = !!currentlyHeldShortcut.isAgent
+
+        const newShortcutId = currentlyHeldShortcut.id
+        const newMode = currentlyHeldShortcut.mode
+        const newIsAgent = activeIsAgent
+
+        shortPressTimer = setTimeout(async () => {
+          if (activeShortcutId === newShortcutId && sessionStartTime) {
+            console.info(
+              'lib Shortcut held > threshold (after mode switch), starting recording...',
+            )
+            if (newIsAgent) {
+              await agentSessionManager.startSession()
+            } else {
+              await itoSessionManager.startSession(newMode)
+            }
+          }
+          shortPressTimer = null
+        }, SHORT_PRESS_THRESHOLD_MS)
+        return
+      }
+
+      // Session already started - switch mode normally
       activeShortcutId = currentlyHeldShortcut.id
       activeIsAgent = !!currentlyHeldShortcut.isAgent
       console.info(
@@ -541,6 +582,15 @@ export const stopKeyListener = () => {
 
     // Clean up heartbeat state
     stopHeartbeatChecker()
+
+    // Clean up short press timer
+    if (shortPressTimer) {
+      clearTimeout(shortPressTimer)
+      shortPressTimer = null
+    }
+    activeShortcutId = null
+    sessionStartTime = null
+    activeIsAgent = false
 
     KeyListenerProcess.kill('SIGTERM')
     KeyListenerProcess = null

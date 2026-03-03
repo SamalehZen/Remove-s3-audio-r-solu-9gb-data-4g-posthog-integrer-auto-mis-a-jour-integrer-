@@ -227,6 +227,7 @@ const Pill = () => {
   const [screenThumbnail, setScreenThumbnail] = useState<string | null>(null)
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
   const [isBump, setIsBump] = useState(false)
+  const bumpTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isRecordingRef = useRef(false)
   const stylesInjectedRef = useRef(false)
 
@@ -425,11 +426,13 @@ const Pill = () => {
     const unsubTapFeedback = window.api.on(
       'tap-feedback',
       (_payload: TapFeedbackPayload) => {
-        // Show bump animation for short tap
+        if (bumpTimeoutRef.current) {
+          clearTimeout(bumpTimeoutRef.current)
+        }
         setIsBump(true)
-        // Reset after animation completes (300ms)
-        setTimeout(() => {
+        bumpTimeoutRef.current = setTimeout(() => {
           setIsBump(false)
+          bumpTimeoutRef.current = null
         }, 300)
       },
     )
@@ -442,6 +445,9 @@ const Pill = () => {
       unsubOnboarding()
       unsubUserAuth()
       unsubTapFeedback()
+      if (bumpTimeoutRef.current) {
+        clearTimeout(bumpTimeoutRef.current)
+      }
     }
   }, [])
 
@@ -611,7 +617,7 @@ const Pill = () => {
                 )}
               </AnimatePresence>
 
-              {/* Main Pill - sans glow, couleurs bleu/violet */}
+              {/* Main Pill - sans glow, couleurs neutres */}
               <motion.div
                 variants={idleLineVariants}
                 initial="initial"
