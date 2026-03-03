@@ -20,11 +20,11 @@ import type {
 import type { AppTarget } from '@/app/store/useAppStylingStore'
 import { ItoMode } from '@/app/generated/ito_pb'
 
-// Enhanced dimensions - slightly larger for better presence
-const MIN_PILL_WIDTH = 52
-const MIN_PILL_HEIGHT = 8
-const EXPANDED_PILL_WIDTH = 200
-const EXPANDED_PILL_HEIGHT = 42
+// Enhanced dimensions
+const MIN_PILL_WIDTH = 56
+const MIN_PILL_HEIGHT = 10
+const EXPANDED_PILL_WIDTH = 210
+const EXPANDED_PILL_HEIGHT = 48
 
 function getBarUpdateInterval(): number {
   const { activeTier } = usePerformanceStore.getState()
@@ -33,64 +33,110 @@ function getBarUpdateInterval(): number {
   return 64
 }
 
-// Animation variants for Framer Motion
-const pillVariants = {
-  idle: {
-    width: MIN_PILL_WIDTH,
-    height: MIN_PILL_HEIGHT,
-    borderRadius: 8,
+// IMPRESSIVE animation variants
+const pillContainerVariants = {
+  hidden: {
+    opacity: 0,
+    y: 40,
+    scale: 0.6,
+    filter: 'blur(10px)',
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: 'blur(0px)',
     transition: {
       type: 'spring',
-      stiffness: 400,
-      damping: 30,
-      mass: 0.8,
+      stiffness: 300,
+      damping: 20,
+      mass: 1,
+      staggerChildren: 0.08,
     },
   },
-  expanded: {
+  exit: {
+    opacity: 0,
+    y: 30,
+    scale: 0.8,
+    filter: 'blur(8px)',
+    transition: {
+      duration: 0.25,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+}
+
+const idleLineVariants = {
+  initial: {
+    width: MIN_PILL_WIDTH,
+    height: MIN_PILL_HEIGHT,
+    borderRadius: 5,
+    scale: 1,
+  },
+  hover: {
     width: EXPANDED_PILL_WIDTH,
     height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 20,
+    borderRadius: 24,
+    scale: 1,
     transition: {
       type: 'spring',
-      stiffness: 400,
-      damping: 25,
-      mass: 0.8,
+      stiffness: 350,
+      damping: 22,
+      mass: 0.9,
     },
   },
   recording: {
     width: EXPANDED_PILL_WIDTH,
     height: EXPANDED_PILL_HEIGHT,
-    borderRadius: 20,
+    borderRadius: 24,
+    scale: 1,
     transition: {
       type: 'spring',
-      stiffness: 500,
-      damping: 20,
-      mass: 0.6,
+      stiffness: 450,
+      damping: 18,
+      mass: 0.7,
     },
   },
 }
 
-const contentVariants = {
+const idleLineContentVariants = {
+  hidden: { opacity: 0, scaleX: 0.5 },
+  visible: {
+    opacity: 1,
+    scaleX: 1,
+    transition: {
+      duration: 0.4,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+}
+
+const contentRevealVariants = {
   hidden: {
     opacity: 0,
-    scale: 0.8,
-    y: 10,
+    scale: 0.7,
+    y: 20,
+    filter: 'blur(8px)',
   },
   visible: {
     opacity: 1,
     scale: 1,
     y: 0,
+    filter: 'blur(0px)',
     transition: {
       type: 'spring',
-      stiffness: 300,
+      stiffness: 400,
       damping: 25,
-      staggerChildren: 0.05,
+      mass: 0.8,
+      staggerChildren: 0.06,
+      delayChildren: 0.05,
     },
   },
   exit: {
     opacity: 0,
     scale: 0.9,
-    y: -5,
+    y: -10,
+    filter: 'blur(4px)',
     transition: {
       duration: 0.15,
       ease: 'easeIn',
@@ -98,61 +144,105 @@ const contentVariants = {
   },
 }
 
-const labelVariants = {
-  hidden: { opacity: 0, y: 8, scale: 0.9 },
+const iconPopVariants = {
+  hidden: { scale: 0, rotate: -180, opacity: 0 },
+  visible: {
+    scale: 1,
+    rotate: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 500,
+      damping: 15,
+      mass: 0.6,
+    },
+  },
+}
+
+const labelFloatVariants = {
+  hidden: { opacity: 0, y: 15, scale: 0.8 },
   visible: {
     opacity: 1,
     y: 0,
     scale: 1,
     transition: {
       type: 'spring',
-      stiffness: 400,
-      damping: 25,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: -4,
-    transition: { duration: 0.1 },
-  },
-}
-
-const cancelButtonVariants = {
-  hidden: { opacity: 0, scale: 0, rotate: -90 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    rotate: 0,
-    transition: {
-      type: 'spring',
-      stiffness: 500,
+      stiffness: 450,
       damping: 20,
     },
   },
   exit: {
     opacity: 0,
-    scale: 0.5,
+    y: -10,
+    scale: 0.9,
+    transition: { duration: 0.12 },
+  },
+}
+
+const cancelButtonVariants = {
+  hidden: { scale: 0, rotate: -90, opacity: 0 },
+  visible: {
+    scale: 1,
+    rotate: 0,
+    opacity: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 600,
+      damping: 15,
+    },
+  },
+  exit: {
+    scale: 0,
     rotate: 90,
+    opacity: 0,
     transition: { duration: 0.15 },
   },
 }
 
-const glowVariants = {
+const glowPulseVariants = {
   idle: {
     boxShadow: '0 0 0px rgba(255,255,255,0)',
   },
   hover: {
-    boxShadow: '0 0 20px rgba(255,255,255,0.15), 0 4px 20px rgba(0,0,0,0.3)',
+    boxShadow: [
+      '0 0 20px rgba(255,255,255,0.1)',
+      '0 0 30px rgba(255,255,255,0.2)',
+      '0 0 20px rgba(255,255,255,0.1)',
+    ],
     transition: {
-      duration: 0.3,
-      ease: 'easeOut',
+      boxShadow: {
+        duration: 1.5,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      },
     },
   },
   recording: {
-    boxShadow: '0 0 30px rgba(59,130,246,0.4), 0 0 60px rgba(59,130,246,0.2)',
+    boxShadow: [
+      '0 0 25px rgba(59,130,246,0.5)',
+      '0 0 50px rgba(59,130,246,0.7)',
+      '0 0 25px rgba(59,130,246,0.5)',
+    ],
     transition: {
-      duration: 0.3,
-      ease: 'easeOut',
+      boxShadow: {
+        duration: 0.8,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      },
+    },
+  },
+  processing: {
+    boxShadow: [
+      '0 0 20px rgba(168,85,247,0.4)',
+      '0 0 40px rgba(168,85,247,0.6)',
+      '0 0 20px rgba(168,85,247,0.4)',
+    ],
+    transition: {
+      boxShadow: {
+        duration: 1,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      },
     },
   },
 }
@@ -203,13 +293,10 @@ const Pill = () => {
   const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
   const isRecordingRef = useRef(false)
   const stylesInjectedRef = useRef(false)
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const controls = useAnimation()
 
-  const blurValue = config.enableBackdropBlur ? 'blur(16px)' : 'none'
+  const blurValue = config.enableBackdropBlur ? 'blur(20px) saturate(180%)' : 'none'
   const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
 
-  // Determine pill state
   const anyRecording = isRecording || isManualRecording
   const isIdle = !anyRecording && !isProcessing
   const isExpanded = isHovered || anyRecording || isProcessing
@@ -250,8 +337,8 @@ const Pill = () => {
     `
     document.head.appendChild(style)
     if (document.fonts) {
-      document.fonts.load('13px Inter').catch(() => {})
-      document.fonts.load('11px Inter').catch(() => {})
+      document.fonts.load('14px Inter').catch(() => {})
+      document.fonts.load('12px Inter').catch(() => {})
     }
   }, [])
 
@@ -418,18 +505,12 @@ const Pill = () => {
     }
   }, [isRecording, isManualRecording, isProcessing])
 
-  // Precise hover handling with instant leave
   const handleMouseEnter = useCallback(() => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
     setIsHovered(true)
     window.api?.send('pill-set-mouse-events', false)
   }, [])
 
   const handleMouseLeave = useCallback(() => {
-    // INSTANT close - no delay
     setIsHovered(false)
     window.api?.send('pill-set-mouse-events', true, { forward: true })
   }, [])
@@ -469,25 +550,24 @@ const Pill = () => {
       ? 'Analyzing...'
       : 'Transcribing'
 
-  // Get current variant based on state
-  const getPillVariant = () => {
+  const getLineVariant = () => {
     if (anyRecording || isProcessing) return 'recording'
-    if (isExpanded) return 'expanded'
-    return 'idle'
+    if (isHovered) return 'hover'
+    return 'initial'
   }
 
   const getGlowVariant = () => {
-    if (anyRecording || isProcessing) return 'recording'
+    if (anyRecording) return 'recording'
+    if (isProcessing) return 'processing'
     if (isHovered) return 'hover'
     return 'idle'
   }
 
-  // Gradient background instead of pure black
   const getBackground = () => {
     if (isExpanded) {
-      return 'linear-gradient(145deg, rgba(30,30,35,0.95) 0%, rgba(20,20,25,0.92) 50%, rgba(15,15,20,0.95) 100%)'
+      return 'linear-gradient(135deg, rgba(35,35,42,0.96) 0%, rgba(25,25,32,0.94) 50%, rgba(20,20,28,0.96) 100%)'
     }
-    return 'linear-gradient(145deg, rgba(40,40,45,0.7) 0%, rgba(30,30,35,0.6) 100%)'
+    return 'linear-gradient(135deg, rgba(50,50,58,0.75) 0%, rgba(40,40,48,0.65) 100%)'
   }
 
   return (
@@ -509,21 +589,16 @@ const Pill = () => {
         }}
       />
       
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {shouldShow && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 15, scale: 0.95 }}
-            transition={{
-              type: 'spring',
-              stiffness: 400,
-              damping: 30,
-              mass: 0.8,
-            }}
+            variants={pillContainerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             style={{
               position: 'fixed',
-              bottom: 20,
+              bottom: 24,
               left: '50%',
               x: '-50%',
               zIndex: 50,
@@ -531,30 +606,28 @@ const Pill = () => {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 8,
+              gap: 10,
             }}
           >
-            {/* Label above pill */}
+            {/* Floating label */}
             <AnimatePresence mode="wait">
               {isHovered && isIdle && (
                 <motion.div
-                  variants={labelVariants}
+                  variants={labelFloatVariants}
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  style={{
-                    pointerEvents: 'none',
-                  }}
+                  style={{ pointerEvents: 'none' }}
                 >
                   <span
                     style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'rgba(255,255,255,0.6)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'rgba(255,255,255,0.7)',
                       whiteSpace: 'nowrap',
                       userSelect: 'none',
-                      letterSpacing: '0.3px',
-                      textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                      letterSpacing: '0.5px',
+                      textShadow: '0 2px 8px rgba(0,0,0,0.4)',
                     }}
                   >
                     Click to dictate
@@ -563,20 +636,15 @@ const Pill = () => {
               )}
             </AnimatePresence>
 
-            {/* Pill container with precise hitbox */}
+            {/* Pill wrapper - precise hitbox */}
             <div
-              style={{
-                position: 'relative',
-                // Precise hitbox - only the pill area
-                padding: 0,
-                margin: 0,
-              }}
+              style={{ position: 'relative' }}
               onMouseEnter={handleMouseEnter}
               onMouseLeave={handleMouseLeave}
             >
-              {/* Cancel button - only visible during manual recording */}
+              {/* Cancel button */}
               <AnimatePresence>
-                {isManualRecording && isHovered && (
+                {isManualRecording && (
                   <motion.button
                     variants={cancelButtonVariants}
                     initial="hidden"
@@ -585,37 +653,37 @@ const Pill = () => {
                     onClick={handleCancel}
                     style={{
                       position: 'absolute',
-                      top: -10,
-                      right: -10,
-                      width: 24,
-                      height: 24,
-                      borderRadius: 12,
-                      background: 'linear-gradient(135deg, rgba(239,68,68,0.9) 0%, rgba(220,38,38,0.9) 100%)',
-                      border: '1px solid rgba(255,255,255,0.2)',
+                      top: -12,
+                      right: -12,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      border: '2px solid rgba(255,255,255,0.3)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer',
-                      zIndex: 20,
+                      zIndex: 30,
                       padding: 0,
-                      boxShadow: '0 2px 8px rgba(239,68,68,0.4)',
+                      boxShadow: '0 4px 15px rgba(239,68,68,0.5), 0 0 0 4px rgba(239,68,68,0.1)',
                     }}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.15, rotate: 90 }}
+                    whileTap={{ scale: 0.85 }}
                   >
-                    <X width={14} height={14} color="white" strokeWidth={2.5} />
+                    <X width={16} height={16} color="white" strokeWidth={3} />
                   </motion.button>
                 )}
               </AnimatePresence>
 
-              {/* Main Pill */}
+              {/* Main Morphing Pill */}
               <motion.div
-                variants={pillVariants}
-                initial="idle"
-                animate={getPillVariant()}
+                variants={idleLineVariants}
+                initial="initial"
+                animate={getLineVariant()}
                 style={{
                   background: getBackground(),
-                  border: '1px solid rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.15)',
                   backdropFilter: blurValue,
                   WebkitBackdropFilter: blurValue,
                   cursor: isIdle ? 'pointer' : 'default',
@@ -626,110 +694,121 @@ const Pill = () => {
                   position: 'relative',
                 }}
                 animate={{
-                  ...pillVariants[getPillVariant()],
-                  boxShadow: glowVariants[getGlowVariant()].boxShadow,
+                  ...idleLineVariants[getLineVariant()],
+                  boxShadow: glowPulseVariants[getGlowVariant()].boxShadow,
                 }}
-                transition={pillVariants[getPillVariant()].transition}
+                transition={idleLineVariants[getLineVariant()].transition}
                 onClick={handleClick}
               >
-                {/* Inner glow effect */}
-                <div
+                {/* Inner shimmer */}
+                <motion.div
                   style={{
                     position: 'absolute',
                     inset: 0,
                     borderRadius: 'inherit',
-                    background: isExpanded
-                      ? 'linear-gradient(145deg, rgba(255,255,255,0.08) 0%, transparent 50%, rgba(255,255,255,0.03) 100%)'
-                      : 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, transparent 60%)',
-                    pointerEvents: 'none',
+                    background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.08) 50%, transparent 60%)',
+                    backgroundSize: '200% 100%',
+                  }}
+                  animate={{
+                    backgroundPosition: isHovered || isActive ? ['200% 0%', '-200% 0%'] : '200% 0%',
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: isHovered || isActive ? Infinity : 0,
+                    ease: 'linear',
                   }}
                 />
 
-                {/* Content */}
-                <AnimatePresence mode="wait">
-                  {isExpanded ? (
+                {/* Collapsed state - animated line */}
+                {!isExpanded && (
+                  <motion.div
+                    variants={idleLineContentVariants}
+                    initial="hidden"
+                    animate="visible"
+                    style={{
+                      width: '50%',
+                      height: 4,
+                      borderRadius: 2,
+                      background: 'linear-gradient(90deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.5) 100%)',
+                      boxShadow: '0 0 12px rgba(255,255,255,0.4), 0 0 20px rgba(255,255,255,0.2)',
+                    }}
+                  />
+                )}
+
+                {/* Expanded state - full content */}
+                <AnimatePresence>
+                  {isExpanded && (
                     <motion.div
                       key="expanded"
-                      variants={contentVariants}
+                      variants={contentRevealVariants}
                       initial="hidden"
                       animate="visible"
                       exit="exit"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 10,
-                        padding: '0 16px',
+                        gap: 12,
+                        padding: '0 18px',
                         width: '100%',
                         height: '100%',
                       }}
                     >
-                      {/* Left: App icon + context */}
+                      {/* Icons section */}
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 6,
+                          gap: 8,
                           flexShrink: 0,
                         }}
                       >
                         {appTarget?.iconBase64 ? (
                           <motion.img
-                            initial={{ scale: 0, rotate: -10 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                            variants={iconPopVariants}
                             draggable={false}
                             src={`data:image/png;base64,${appTarget.iconBase64}`}
                             style={{
-                              width: 22,
-                              height: 22,
-                              borderRadius: 5,
+                              width: 26,
+                              height: 26,
+                              borderRadius: 6,
                               flexShrink: 0,
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
                             }}
                           />
                         ) : (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                          >
-                            <ItoIcon width={22} height={22} className="text-white" />
+                          <motion.div variants={iconPopVariants}>
+                            <ItoIcon width={26} height={26} className="text-white" />
                           </motion.div>
                         )}
                         
                         {contextSource === 'screen' && screenThumbnail && (
                           <motion.img
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.1, type: 'spring', stiffness: 400 }}
+                            variants={iconPopVariants}
                             draggable={false}
                             src={`data:image/png;base64,${screenThumbnail}`}
                             style={{
-                              width: 32,
-                              height: 20,
-                              borderRadius: 3,
+                              width: 38,
+                              height: 24,
+                              borderRadius: 4,
                               objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.25)',
+                              border: '1.5px solid rgba(255,255,255,0.3)',
                               flexShrink: 0,
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                             }}
                           />
                         )}
                         
                         {contextSource === 'selection' && (
                           <motion.span
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 400 }}
-                            style={{
-                              fontSize: 14,
-                            }}
+                            variants={iconPopVariants}
+                            style={{ fontSize: 18 }}
                           >
                             📝
                           </motion.span>
                         )}
                       </div>
 
-                      {/* Center: Content */}
+                      {/* Center content */}
                       <div
                         style={{
                           flex: 1,
@@ -743,16 +822,16 @@ const Pill = () => {
                           {isIdle ? (
                             <motion.span
                               key="idle-text"
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -5 }}
-                              transition={{ duration: 0.15 }}
+                              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
+                              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                              transition={{ duration: 0.2 }}
                               style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                color: 'rgba(255,255,255,0.5)',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: 'rgba(255,255,255,0.6)',
                                 whiteSpace: 'nowrap',
-                                letterSpacing: '0.2px',
+                                letterSpacing: '0.3px',
                               }}
                             >
                               Click to dictate
@@ -760,14 +839,14 @@ const Pill = () => {
                           ) : (
                             <motion.div
                               key="active-content"
-                              initial={{ opacity: 0, scale: 0.9 }}
+                              initial={{ opacity: 0, scale: 0.8 }}
                               animate={{ opacity: 1, scale: 1 }}
                               exit={{ opacity: 0, scale: 0.9 }}
-                              transition={{ duration: 0.2 }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 8,
+                                gap: 10,
                               }}
                             >
                               {isManualRecording ? (
@@ -775,32 +854,33 @@ const Pill = () => {
                                   <AudioWaveform
                                     audioLevel={currentAudioLevel}
                                     active
-                                    width={90}
+                                    width={100}
                                     height={EXPANDED_PILL_HEIGHT}
                                   />
                                   <motion.button
                                     onClick={handleStop}
-                                    whileHover={{ scale: 1.15 }}
-                                    whileTap={{ scale: 0.9 }}
+                                    whileHover={{ scale: 1.2, rotate: 5 }}
+                                    whileTap={{ scale: 0.85 }}
                                     style={{
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      background: 'rgba(255,255,255,0.15)',
-                                      border: '1px solid rgba(255,255,255,0.2)',
-                                      borderRadius: 8,
-                                      padding: '6px',
+                                      background: 'rgba(255,255,255,0.2)',
+                                      border: '2px solid rgba(255,255,255,0.3)',
+                                      borderRadius: 10,
+                                      padding: '8px',
                                       cursor: 'pointer',
+                                      boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
                                     }}
                                   >
-                                    <Square width={16} height={16} color="white" fill="currentColor" />
+                                    <Square width={18} height={18} color="white" fill="currentColor" />
                                   </motion.button>
                                 </>
                               ) : anyRecording ? (
                                 <AudioWaveform
                                   audioLevel={currentAudioLevel}
                                   active
-                                  width={120}
+                                  width={140}
                                   height={EXPANDED_PILL_HEIGHT}
                                 />
                               ) : isProcessing ? (
@@ -811,21 +891,6 @@ const Pill = () => {
                         </AnimatePresence>
                       </div>
                     </motion.div>
-                  ) : (
-                    /* Collapsed state - just a line */
-                    <motion.div
-                      key="collapsed"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      style={{
-                        width: '60%',
-                        height: 3,
-                        borderRadius: 2,
-                        background: 'linear-gradient(90deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.4) 100%)',
-                        boxShadow: '0 0 8px rgba(255,255,255,0.3)',
-                      }}
-                    />
                   )}
                 </AnimatePresence>
               </motion.div>
