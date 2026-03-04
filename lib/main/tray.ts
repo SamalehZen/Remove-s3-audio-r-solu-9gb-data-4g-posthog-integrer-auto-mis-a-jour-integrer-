@@ -1,4 +1,4 @@
-import { app, Menu, Tray, nativeImage } from 'electron'
+import { app, Menu, Tray, nativeImage, powerMonitor } from 'electron'
 import { join } from 'path'
 import { audioRecorderService } from '../media/audio'
 import store, { SettingsStore } from './store'
@@ -9,6 +9,8 @@ import { voiceInputService } from './voiceInputService'
 let tray: Tray | null = null
 const TRAY_GUID = '7c6b7a2e-0d7e-4a4a-9d3d-2a3d9b6f2b10' // This is a GUID for the tray icon, ensures that the icon maintains position across restarts
 const TRAY_HEIGHT = 16
+const TRAY_HEALTH_CHECK_MS = 3 * 60 * 1000 // 3 minutes
+let trayHealthTimer: ReturnType<typeof setInterval> | null = null
 
 function getTrayIconPath(): string {
   // Use the repo resource path in dev and the app resources path in prod
@@ -142,9 +144,53 @@ export async function createAppTray(): Promise<void> {
       tray?.popUpContextMenu()
     })
   }
+
+  startTrayHealthCheck()
+}
+
+function isTrayAlive(): boolean {
+  try {
+    return tray !== null && !tray.isDestroyed()
+  } catch {
+    return false
+  }
+}
+
+async function ensureTrayAlive(): Promise<void> {
+  if (isTrayAlive()) return
+  console.warn('[Tray] Tray icon lost, recreating...')
+  tray = null
+  await createAppTray()
+}
+
+function startTrayHealthCheck(): void {
+  if (trayHealthTimer) return
+  trayHealthTimer = setInterval(() => {
+    ensureTrayAlive().catch(err =>
+      console.error('[Tray] Health check failed:', err),
+    )
+  }, TRAY_HEALTH_CHECK_MS)
+
+  powerMonitor.on('resume', () => {
+    console.log('[Tray] System resumed, checking tray...')
+    ensureTrayAlive().catch(err =>
+      console.error('[Tray] Resume restore failed:', err),
+    )
+  })
+
+  powerMonitor.on('unlock-screen', () => {
+    console.log('[Tray] Screen unlocked, checking tray...')
+    ensureTrayAlive().catch(err =>
+      console.error('[Tray] Unlock restore failed:', err),
+    )
+  })
 }
 
 export function destroyAppTray(): void {
+  if (trayHealthTimer) {
+    clearInterval(trayHealthTimer)
+    trayHealthTimer = null
+  }
   if (tray) {
     tray.destroy()
     tray = null

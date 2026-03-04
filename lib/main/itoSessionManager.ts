@@ -166,9 +166,7 @@ export class ItoSessionManager {
             )
             this.handleSonioxStreamError(error)
           })
-          await this.sonioxService.start(tempKey, this.getTranslationConfig(), {
-            disableEndpointDetection: mode === ItoMode.TRANSCRIBE,
-          })
+          await this.sonioxService.start(tempKey, this.getTranslationConfig())
         }
 
         if (generation !== this.sonioxSessionGeneration) {
@@ -436,12 +434,18 @@ export class ItoSessionManager {
         unmuteSystemAudio()
       }
 
-      const rawTranscript = service?.getAccumulatedText() || ''
-      if (service) {
-        service.cancel()
-      }
-
+      recordingStateNotifier.notifyProcessingStarted()
       recordingStateNotifier.notifyRecordingStopped()
+
+      let rawTranscript = ''
+      if (service) {
+        try {
+          rawTranscript = await service.stop()
+        } catch (error) {
+          console.error('[itoSessionManager] Error stopping Soniox service:', error)
+          rawTranscript = service.getAccumulatedText() || ''
+        }
+      }
 
       if (!rawTranscript || rawTranscript.trim().length === 0) {
         console.warn('[itoSessionManager] No speech detected from Soniox')
@@ -706,9 +710,7 @@ export class ItoSessionManager {
             this.preWarmTimestamp = 0
           }
         })
-        await service.start(tempKey, undefined, {
-          disableEndpointDetection: true,
-        })
+        await service.start(tempKey)
         if (this.sonioxSessionActive) {
           service.cancel()
           return

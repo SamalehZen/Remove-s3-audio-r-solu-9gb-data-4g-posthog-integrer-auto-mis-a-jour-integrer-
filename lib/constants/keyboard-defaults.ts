@@ -2,17 +2,17 @@ import { ItoMode } from '@/app/generated/ito_pb'
 
 // Platform-specific keyboard shortcut defaults
 export const ITO_MODE_SHORTCUT_DEFAULTS_MAC = {
-  [ItoMode.TRANSCRIBE]: ['fn'],
-  [ItoMode.EDIT]: ['control-left', 'fn'],
+  [ItoMode.TRANSCRIBE]: ['option-left'],
+  [ItoMode.EDIT]: [],
   [ItoMode.TRANSLATE]: [],
-  [ItoMode.CONTEXT_AWARENESS]: ['option-left', 'fn'],
+  [ItoMode.CONTEXT_AWARENESS]: [],
 }
 
 export const ITO_MODE_SHORTCUT_DEFAULTS_WIN = {
-  [ItoMode.TRANSCRIBE]: ['control-left', 'command-left'],
-  [ItoMode.EDIT]: ['option-left', 'control-left'],
+  [ItoMode.TRANSCRIBE]: ['option-left'],
+  [ItoMode.EDIT]: [],
   [ItoMode.TRANSLATE]: [],
-  [ItoMode.CONTEXT_AWARENESS]: ['shift-left', 'control-left', 'command-left'],
+  [ItoMode.CONTEXT_AWARENESS]: [],
 }
 
 // Helper to detect platform - works in both main and renderer process

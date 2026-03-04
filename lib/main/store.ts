@@ -331,6 +331,22 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    id: '2025-10-01-alt-only-shortcuts',
+    run: s => {
+      const settings: any = s.get('settings') || {}
+      const shortcuts = settings.keyboardShortcuts
+      if (!Array.isArray(shortcuts)) return
+      const updated = shortcuts.map((ks: any) => {
+        if (ks.isAgent) return ks
+        if (ks.mode === ItoMode.TRANSCRIBE) {
+          return { ...ks, keys: ['option-left'] }
+        }
+        return { ...ks, keys: [] }
+      })
+      s.set('settings.keyboardShortcuts', updated)
+    },
+  },
 ]
 
 // ---------- Migration runner ----------
