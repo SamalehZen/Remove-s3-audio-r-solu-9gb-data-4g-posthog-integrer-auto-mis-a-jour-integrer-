@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 
 export type AudioWaveformProps = {
   audioLevel: number
+  audioLevelRef?: React.MutableRefObject<number>
   active: boolean
   processing?: boolean
   width?: number
@@ -50,6 +51,7 @@ function createSmoothWavePath(
 
 export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   audioLevel,
+  audioLevelRef,
   active,
   processing = false,
   width = 90,
@@ -67,13 +69,15 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   const lastRenderRef = useRef(0)
 
   useEffect(() => {
-    if (!active || audioLevel <= 0) return
-    const boosted = Math.min(1, Math.sqrt(audioLevel) * 1.4)
+    if (!active) return
+    const level = audioLevelRef ? audioLevelRef.current : audioLevel
+    if (level <= 0) return
+    const boosted = Math.min(1, Math.sqrt(level) * 1.4)
     stateRef.current.targetLevel = Math.min(
       1,
       stateRef.current.targetLevel * 0.2 + boosted * 0.8,
     )
-  }, [audioLevel, active])
+  }, [audioLevel, active, audioLevelRef])
 
   useEffect(() => {
     if (!active && !processing) {
@@ -101,6 +105,14 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
       if (processing && !active) {
         s.targetLevel = Math.max(s.targetLevel, 0.14)
+      }
+
+      if (audioLevelRef && active) {
+        const level = audioLevelRef.current
+        if (level > 0) {
+          const boosted = Math.min(1, Math.sqrt(level) * 1.4)
+          s.targetLevel = Math.min(1, s.targetLevel * 0.2 + boosted * 0.8)
+        }
       }
 
       s.targetLevel *= TARGET_DECAY_PER_FRAME

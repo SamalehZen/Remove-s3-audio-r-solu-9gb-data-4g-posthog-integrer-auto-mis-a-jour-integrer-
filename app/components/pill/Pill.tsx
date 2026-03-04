@@ -1,168 +1,67 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePerformanceStore } from '../../store/usePerformanceStore'
-import { Square, X } from '@mynaui/icons-react'
-import { useSettingsStore } from '../../store/useSettingsStore'
-import {
-  useOnboardingStore,
-  ONBOARDING_CATEGORIES,
-} from '../../store/useOnboardingStore'
+import { X } from '@mynaui/icons-react'
+import { ONBOARDING_CATEGORIES } from '../../store/useOnboardingStore'
 import { ProcessingStatusDisplay } from './contents/AudioBarsBase'
-import { AudioWaveform } from './contents/AudioWaveform'
+import { PillRecordingContent } from './contents/PillRecordingContent'
+import { PillHoverContent } from './contents/PillHoverContent'
 import { useAudioStore } from '@/app/store/useAudioStore'
 import { analytics, ANALYTICS_EVENTS } from '../analytics'
-import { ItoIcon } from '../icons/ItoIcon'
 import { soundPlayer } from '@/app/utils/soundPlayer'
-import type {
-  RecordingStatePayload,
-  ProcessingStatePayload,
-} from '@/lib/types/ipc'
-import type { AppTarget } from '@/app/store/useAppStylingStore'
-import { ItoMode } from '@/app/generated/ito_pb'
+import { usePillReducer } from './hooks/usePillReducer'
+import { usePillIPC } from './hooks/usePillIPC'
+import { usePillVolume } from './hooks/usePillVolume'
+import {
+  IDLE_WIDTH,
+  IDLE_HEIGHT,
+  RECORDING_WIDTH,
+  RECORDING_HEIGHT,
+  THINKING_WIDTH,
+  THINKING_HEIGHT,
+  HOVER_WIDTH,
+  HOVER_HEIGHT,
+  pillContainerVariants,
+  cancelButtonVariants,
+  STAGED_TRANSITION,
+  CONTENT_ENTER,
+  CONTENT_EXIT,
+} from './constants'
+import './pill-window.css'
 
-const IDLE_WIDTH = 40
-const IDLE_HEIGHT = 8
-const RECORDING_WIDTH = 130
-const RECORDING_HEIGHT = 34
-const THINKING_WIDTH = 45
-const THINKING_HEIGHT = 34
-const HOVER_WIDTH = 110
-const HOVER_HEIGHT = 32
-
-const IOS_SPRING = {
-  type: 'spring' as const,
-  stiffness: 380,
-  damping: 30,
-  mass: 0.8,
-}
-
-const IOS_SPRING_SNAPPY = {
-  type: 'spring' as const,
-  stiffness: 420,
-  damping: 26,
-  mass: 0.7,
-}
-
-const CONTENT_ENTER = {
-  type: 'spring' as const,
-  stiffness: 400,
-  damping: 28,
-  mass: 0.7,
-}
-
-const CONTENT_EXIT = {
-  duration: 0.12,
-  ease: [0.4, 0, 1, 1] as const,
-}
-
-function getBarUpdateInterval(): number {
-  const { activeTier } = usePerformanceStore.getState()
-  if (activeTier === 'low') return 200
-  if (activeTier === 'balanced') return 100
-  return 64
-}
-
-const pillContainerVariants = {
-  hidden: {
-    opacity: 0,
-    y: 16,
-    scale: 0.92,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: IOS_SPRING,
-  },
-  exit: {
-    opacity: 0,
-    y: 12,
-    scale: 0.95,
-    transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
-  },
-}
-
-const labelFloatVariants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: IOS_SPRING,
-  },
-  exit: {
-    opacity: 0,
-    y: -6,
-    transition: { duration: 0.1 },
-  },
-}
-
-const cancelButtonVariants = {
-  hidden: { scale: 0, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: IOS_SPRING_SNAPPY,
-  },
-  exit: {
-    scale: 0,
-    opacity: 0,
-    transition: { duration: 0.12 },
-  },
+const contentAbsolute: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 }
 
 const Pill = () => {
-  const initialShowItoBarAlways = useSettingsStore(
-    state => state.showItoBarAlways,
-  )
-  const initialInteractionSounds = useSettingsStore(
-    state => state.interactionSounds,
-  )
-  const initialOnboardingCategory = useOnboardingStore(
-    state => state.onboardingCategory,
-  )
-  const initialOnboardingCompleted = useOnboardingStore(
-    state => state.onboardingCompleted,
-  )
   const { startRecording, stopRecording } = useAudioStore()
   const config = usePerformanceStore(s => s.config)
 
-  const [isRecording, setIsRecording] = useState(false)
-  const [isManualRecording, setIsManualRecording] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isAgentMode, setIsAgentMode] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
-  const isManualRecordingRef = useRef(false)
-  const [interactionSounds, setInteractionSoundsLocal] = useState(
-    initialInteractionSounds,
-  )
-  const interactionSoundsRef = useRef(initialInteractionSounds)
-  const [showItoBarAlways, setShowItoBarAlways] = useState(
-    initialShowItoBarAlways,
-  )
-  const [onboardingCategory, setOnboardingCategory] = useState(
-    initialOnboardingCategory,
-  )
-  const [onboardingCompleted, setOnboardingCompleted] = useState(
-    initialOnboardingCompleted,
-  )
-  const volumeHistoryRef = useRef<number[]>([])
-  const lastVolumeUpdateRef = useRef(0)
-  const [volumeHistory, setVolumeHistory] = useState<number[]>([])
-  const [appTarget, setAppTarget] = useState<AppTarget | null>(null)
-  const [contextSource, setContextSource] = useState<
-    'screen' | 'selection' | null
-  >(null)
-  const [screenThumbnail, setScreenThumbnail] = useState<string | null>(null)
-  const [currentMode, setCurrentMode] = useState<ItoMode | undefined>(undefined)
-  const isRecordingRef = useRef(false)
-  const stylesInjectedRef = useRef(false)
+  const [state, dispatch] = usePillReducer()
+  const phaseRef = useRef(state.phase)
+  phaseRef.current = state.phase
+
+  const { showItoBarAlways, onboardingCategory, onboardingCompleted } =
+    usePillIPC(dispatch, phaseRef)
+
+  const anyRecording =
+    state.phase === 'recording' || state.phase === 'manualRecording'
+  const isManualRecording = state.phase === 'manualRecording'
+  const isProcessing =
+    state.phase === 'processing' || state.phase === 'agentProcessing'
+  const isIdle = state.phase === 'idle'
+  const isActive = !isIdle
+
+  const audioLevelRef = usePillVolume(anyRecording)
+
+  const [isHovered, setIsHovered] = React.useState(false)
+  const cssInjectedRef = useRef(false)
 
   const blurValue = config.enableBackdropBlur ? 'blur(16px)' : 'none'
-  const currentAudioLevel = volumeHistory[volumeHistory.length - 1] || 0
-
-  const anyRecording = isRecording || isManualRecording
-  const isIdle = !anyRecording && !isProcessing
-  const isActive = anyRecording || isProcessing
 
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
@@ -178,26 +77,9 @@ const Pill = () => {
   }, [])
 
   useEffect(() => {
-    if (stylesInjectedRef.current) return
-    stylesInjectedRef.current = true
-    const style = document.createElement('style')
-    style.textContent = `
-      html, body, #app {
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
-        background: transparent !important;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-end;
-        pointer-events: none;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', system-ui, sans-serif;
-      }
-    `
-    document.head.appendChild(style)
+    if (cssInjectedRef.current) return
+    cssInjectedRef.current = true
+    document.documentElement.classList.add('pill-window')
     if (document.fonts) {
       document.fonts.load('12px Inter').catch(() => {})
       document.fonts.load('10px Inter').catch(() => {})
@@ -205,167 +87,8 @@ const Pill = () => {
   }, [])
 
   useEffect(() => {
-    interactionSoundsRef.current = interactionSounds
-  }, [interactionSounds])
-
-  useEffect(() => {
-    const unsubRecording = window.api.on(
-      'recording-state-update',
-      (state: RecordingStatePayload) => {
-        const wasRecording = isRecordingRef.current
-        isRecordingRef.current = state.isRecording
-        setIsRecording(state.isRecording)
-
-        if (state.isRecording) {
-          if (
-            state.appTargetName !== undefined ||
-            state.appTargetIconBase64 !== undefined
-          ) {
-            setAppTarget(prev => {
-              const newName = state.appTargetName ?? prev?.name ?? 'Ito'
-              const incomingIcon =
-                state.appTargetIconBase64 !== undefined
-                  ? (state.appTargetIconBase64 ?? null)
-                  : (prev?.iconBase64 ?? null)
-
-              const newIcon =
-                !incomingIcon && prev?.iconBase64 && newName === prev.name
-                  ? prev.iconBase64
-                  : incomingIcon
-
-              if (
-                prev &&
-                prev.name === newName &&
-                prev.iconBase64 === newIcon
-              ) {
-                return prev
-              }
-
-              return { name: newName, iconBase64: newIcon } as AppTarget
-            })
-          } else if (!wasRecording) {
-            setAppTarget(null)
-          }
-        }
-
-        if (state.contextSource) {
-          setContextSource(state.contextSource)
-        }
-
-        if (state.screenThumbnailBase64) {
-          setScreenThumbnail(state.screenThumbnailBase64)
-        }
-
-        if (state.mode !== undefined) {
-          setCurrentMode(state.mode)
-        }
-
-        if (
-          interactionSoundsRef.current &&
-          wasRecording !== state.isRecording
-        ) {
-          soundPlayer.play(
-            state.isRecording ? 'recording-start' : 'recording-stop',
-          )
-        }
-
-        if (
-          !isManualRecordingRef.current &&
-          wasRecording !== state.isRecording
-        ) {
-          const analyticsEvent = state.isRecording
-            ? ANALYTICS_EVENTS.RECORDING_STARTED
-            : ANALYTICS_EVENTS.RECORDING_COMPLETED
-          analytics.track(analyticsEvent, {
-            is_recording: state.isRecording,
-            mode: state.mode,
-          })
-        }
-
-        if (!state.isRecording) {
-          setIsManualRecording(false)
-          isManualRecordingRef.current = false
-          volumeHistoryRef.current = []
-          setVolumeHistory([])
-        }
-      },
-    )
-
-    const unsubProcessing = window.api.on(
-      'processing-state-update',
-      (state: ProcessingStatePayload) => {
-        setIsProcessing(state.isProcessing)
-        if (state.isAgent !== undefined) {
-          setIsAgentMode(state.isAgent)
-        }
-        if (!state.isProcessing) {
-          setIsAgentMode(false)
-        }
-      },
-    )
-
-    const unsubVolume = window.api.on('volume-update', (vol: number) => {
-      const now = Date.now()
-      if (now - lastVolumeUpdateRef.current < getBarUpdateInterval()) {
-        return
-      }
-      const newHistory = [...volumeHistoryRef.current, vol]
-      if (newHistory.length > 42) {
-        newHistory.shift()
-      }
-      volumeHistoryRef.current = newHistory
-      lastVolumeUpdateRef.current = now
-      setVolumeHistory(newHistory)
-    })
-
-    const unsubSettings = window.api.on('settings-update', (settings: any) => {
-      setShowItoBarAlways(settings.showItoBarAlways)
-      setInteractionSoundsLocal(settings.interactionSounds)
-    })
-
-    const unsubOnboarding = window.api.on(
-      'onboarding-update',
-      (onboarding: any) => {
-        setOnboardingCategory(onboarding.onboardingCategory)
-        setOnboardingCompleted(onboarding.onboardingCompleted)
-      },
-    )
-
-    const unsubUserAuth = window.api.on('user-auth-update', (authUser: any) => {
-      if (authUser) {
-        analytics.identifyUser(
-          authUser.id,
-          {
-            user_id: authUser.id,
-            email: authUser.email,
-            name: authUser.name,
-            provider: authUser.provider,
-          },
-          authUser.provider,
-        )
-      } else {
-        analytics.resetUser()
-      }
-    })
-
-    return () => {
-      unsubRecording()
-      unsubProcessing()
-      unsubVolume()
-      unsubSettings()
-      unsubOnboarding()
-      unsubUserAuth()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!isRecording && !isManualRecording && !isProcessing) {
-      setAppTarget(null)
-      setContextSource(null)
-      setScreenThumbnail(null)
-      setCurrentMode(undefined)
-    }
-  }, [isRecording, isManualRecording, isProcessing])
+    if (isIdle) dispatch({ type: 'RESET_CONTEXT' })
+  }, [isIdle, dispatch])
 
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true)
@@ -377,34 +100,65 @@ const Pill = () => {
     window.api?.send('pill-set-mouse-events', true, { forward: true })
   }, [])
 
-  const handleClick = () => {
-    if (isHovered && !anyRecording && !isProcessing) {
-      setIsManualRecording(true)
-      isManualRecordingRef.current = true
-      startRecording()
-      analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_STARTED, {
-        is_recording: true,
+  const handleClick = useCallback(() => {
+    if (!isIdle) return
+    phaseRef.current = 'manualRecording'
+    dispatch({ type: 'MANUAL_RECORDING_START' })
+    startRecording()
+    analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_STARTED, {
+      is_recording: true,
+    })
+  }, [isIdle, dispatch, startRecording])
+
+  const handleCancel = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      phaseRef.current = 'idle'
+      dispatch({ type: 'MANUAL_RECORDING_CANCEL' })
+      stopRecording()
+      analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_ABANDONED, {
+        is_recording: false,
       })
-    }
-  }
+    },
+    [dispatch, stopRecording],
+  )
 
-  const handleCancel = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsManualRecording(false)
-    stopRecording()
-    analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_ABANDONED, {
-      is_recording: false,
-    })
-  }
+  const handleStop = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      phaseRef.current = 'idle'
+      dispatch({ type: 'MANUAL_RECORDING_STOP' })
+      stopRecording()
+      analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_COMPLETED, {
+        is_recording: false,
+      })
+    },
+    [dispatch, stopRecording],
+  )
 
-  const handleStop = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsManualRecording(false)
-    stopRecording()
-    analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_COMPLETED, {
-      is_recording: false,
-    })
-  }
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.key === 'Enter' || e.key === ' ') && isIdle) {
+        e.preventDefault()
+        phaseRef.current = 'manualRecording'
+        dispatch({ type: 'MANUAL_RECORDING_START' })
+        startRecording()
+        analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_STARTED, {
+          is_recording: true,
+        })
+      }
+      if (e.key === 'Escape' && isManualRecording) {
+        e.preventDefault()
+        phaseRef.current = 'idle'
+        dispatch({ type: 'MANUAL_RECORDING_CANCEL' })
+        stopRecording()
+        analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_ABANDONED, {
+          is_recording: false,
+        })
+      }
+    },
+    [isIdle, isManualRecording, dispatch, startRecording, stopRecording],
+  )
 
   const getDimensions = () => {
     if (anyRecording) return { w: RECORDING_WIDTH, h: RECORDING_HEIGHT }
@@ -433,22 +187,25 @@ const Pill = () => {
     return '0 1px 6px rgba(0,0,0,0.18)'
   }
 
-  const getBorder = () => {
-    if (anyRecording || isProcessing) return '1px solid rgba(180,185,195,0.18)'
-    if (isHovered) return '1px solid rgba(180,185,195,0.14)'
-    return '1px solid rgba(200,200,210,0.1)'
-  }
-
-  const contentAbsolute: React.CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+  const getBorderColor = () => {
+    if (anyRecording || isProcessing) return 'rgba(180,185,195,0.18)'
+    if (isHovered) return 'rgba(180,185,195,0.14)'
+    return 'rgba(200,200,210,0.1)'
   }
 
   return (
-    <>
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
+    >
       <AnimatePresence mode="wait">
         {shouldShow && (
           <motion.div
@@ -457,11 +214,6 @@ const Pill = () => {
             animate="visible"
             exit="exit"
             style={{
-              position: 'fixed',
-              bottom: 20,
-              left: '50%',
-              x: '-50%',
-              zIndex: 50,
               pointerEvents: 'auto',
               display: 'flex',
               flexDirection: 'column',
@@ -469,32 +221,6 @@ const Pill = () => {
               gap: 8,
             }}
           >
-            <AnimatePresence mode="wait">
-              {isHovered && isIdle && (
-                <motion.div
-                  key="label"
-                  variants={labelFloatVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: 'rgba(255,255,255,0.55)',
-                      whiteSpace: 'nowrap',
-                      userSelect: 'none',
-                      letterSpacing: '0.3px',
-                    }}
-                  >
-                    Click to dictate
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             <div
               style={{
                 position: 'relative',
@@ -512,6 +238,7 @@ const Pill = () => {
                     animate="visible"
                     exit="exit"
                     onClick={handleCancel}
+                    aria-label="Cancel recording"
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -537,6 +264,15 @@ const Pill = () => {
               </AnimatePresence>
 
               <motion.div
+                role="button"
+                tabIndex={0}
+                aria-label={
+                  anyRecording
+                    ? 'Recording in progress'
+                    : isProcessing
+                      ? 'Processing audio'
+                      : 'Click to start dictation'
+                }
                 initial={false}
                 animate={{
                   width: dims.w,
@@ -544,19 +280,23 @@ const Pill = () => {
                   borderRadius: pillRadius,
                   backgroundColor: getBgColor(),
                   boxShadow: getShadow(),
+                  borderColor: getBorderColor(),
                 }}
-                transition={IOS_SPRING}
+                transition={STAGED_TRANSITION}
                 style={{
-                  border: getBorder(),
+                  borderWidth: 1,
+                  borderStyle: 'solid',
                   backdropFilter: blurValue,
                   WebkitBackdropFilter: blurValue,
                   cursor: isIdle ? 'pointer' : 'default',
                   overflow: 'hidden',
                   position: 'relative',
+                  outline: 'none',
                 }}
                 onClick={handleClick}
+                onKeyDown={handleKeyDown}
               >
-                <AnimatePresence>
+                <AnimatePresence mode="wait">
                   {!isExpanded && (
                     <motion.div
                       key="idle-line"
@@ -566,139 +306,33 @@ const Pill = () => {
                       transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
                       style={contentAbsolute}
                     >
-                      <div
+                      <motion.div
+                        animate={{ opacity: [0.7, 1, 0.7] }}
+                        transition={{
+                          duration: 3,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
                         style={{
                           width: '55%',
                           height: 3,
                           borderRadius: 1.5,
-                          background: 'linear-gradient(90deg, rgba(190,195,205,0.35) 0%, rgba(215,220,230,0.55) 50%, rgba(190,195,205,0.35) 100%)',
+                          background:
+                            'linear-gradient(90deg, rgba(190,195,205,0.35) 0%, rgba(215,220,230,0.55) 50%, rgba(190,195,205,0.35) 100%)',
                         }}
                       />
                     </motion.div>
                   )}
 
                   {isExpanded && anyRecording && (
-                    <motion.div
-                      key="recording-content"
-                      initial={{ opacity: 0, scale: 0.85 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9, transition: CONTENT_EXIT }}
-                      transition={CONTENT_ENTER}
-                      style={{
-                        ...contentAbsolute,
-                        gap: 6,
-                        padding: '0 10px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {appTarget?.iconBase64 ? (
-                          <motion.img
-                            initial={{ scale: 0.7, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={IOS_SPRING_SNAPPY}
-                            draggable={false}
-                            src={`data:image/png;base64,${appTarget.iconBase64}`}
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 5,
-                              flexShrink: 0,
-                            }}
-                          />
-                        ) : (
-                          <motion.div
-                            initial={{ scale: 0.7, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={IOS_SPRING_SNAPPY}
-                          >
-                            <ItoIcon width={18} height={18} className="text-white" />
-                          </motion.div>
-                        )}
-
-                        {contextSource === 'screen' && screenThumbnail && (
-                          <motion.img
-                            initial={{ scale: 0.7, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={IOS_SPRING_SNAPPY}
-                            draggable={false}
-                            src={`data:image/png;base64,${screenThumbnail}`}
-                            style={{
-                              width: 28,
-                              height: 18,
-                              borderRadius: 3,
-                              objectFit: 'cover',
-                              border: '1px solid rgba(255,255,255,0.15)',
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-
-                        {contextSource === 'selection' && (
-                          <motion.span
-                            initial={{ scale: 0.7, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={IOS_SPRING_SNAPPY}
-                            style={{ fontSize: 13 }}
-                          >
-                            📝
-                          </motion.span>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          minWidth: 0,
-                        }}
-                      >
-                        {isManualRecording ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <AudioWaveform
-                              audioLevel={currentAudioLevel}
-                              active
-                              width={60}
-                              height={RECORDING_HEIGHT}
-                              strokeColor="rgba(200,205,215,0.85)"
-                            />
-                            <motion.button
-                              onClick={handleStop}
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                background: 'rgba(200,205,215,0.15)',
-                                border: '1px solid rgba(200,205,215,0.2)',
-                                borderRadius: 5,
-                                padding: '3px',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <Square width={12} height={12} color="rgba(200,205,215,0.9)" fill="currentColor" />
-                            </motion.button>
-                          </div>
-                        ) : (
-                          <AudioWaveform
-                            audioLevel={currentAudioLevel}
-                            active
-                            width={80}
-                            height={RECORDING_HEIGHT}
-                            strokeColor="rgba(200,205,215,0.85)"
-                          />
-                        )}
-                      </div>
-                    </motion.div>
+                    <PillRecordingContent
+                      isManualRecording={isManualRecording}
+                      audioLevelRef={audioLevelRef}
+                      appTarget={state.context.appTarget}
+                      contextSource={state.context.contextSource}
+                      screenThumbnail={state.context.screenThumbnail}
+                      onStop={handleStop}
+                    />
                   )}
 
                   {isExpanded && isProcessing && !anyRecording && (
@@ -706,7 +340,11 @@ const Pill = () => {
                       key="thinking-content"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.85, transition: CONTENT_EXIT }}
+                      exit={{
+                        opacity: 0,
+                        scale: 0.85,
+                        transition: CONTENT_EXIT,
+                      }}
                       transition={CONTENT_ENTER}
                       style={contentAbsolute}
                     >
@@ -714,40 +352,14 @@ const Pill = () => {
                     </motion.div>
                   )}
 
-                  {isExpanded && isIdle && isHovered && (
-                    <motion.div
-                      key="hover-content"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95, transition: CONTENT_EXIT }}
-                      transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-                      style={{
-                        ...contentAbsolute,
-                        gap: 8,
-                        padding: '0 12px',
-                      }}
-                    >
-                      <ItoIcon width={16} height={16} className="text-white" style={{ opacity: 0.7, flexShrink: 0 }} />
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          color: 'rgba(200,205,215,0.7)',
-                          whiteSpace: 'nowrap',
-                          letterSpacing: '0.2px',
-                        }}
-                      >
-                        Click to dictate
-                      </span>
-                    </motion.div>
-                  )}
+                  {isExpanded && isIdle && isHovered && <PillHoverContent />}
                 </AnimatePresence>
               </motion.div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   )
 }
 
