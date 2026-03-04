@@ -41,6 +41,9 @@ export class ItoSessionManager {
   private sonioxSessionGeneration = 0
   private sonioxSessionActive = false
   private contextGatherPromise: Promise<void> | null = null
+  private preWarmedSonioxService: SonioxStreamingService | null = null
+  private preWarmTimestamp = 0
+  private readonly PRE_WARM_TTL_MS = 30_000
 
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
@@ -130,15 +133,43 @@ export class ItoSessionManager {
           return false
         }
 
-        this.sonioxService = new SonioxStreamingService()
-        this.sonioxService.on('error', (error: Error) => {
-          console.error(
-            '[itoSessionManager] Soniox streaming error:',
-            error.message,
+        const preWarmed = this.preWarmedSonioxService
+        this.preWarmedSonioxService = null
+
+        if (
+          preWarmed &&
+          preWarmed.isCurrentlyActive() &&
+          !preWarmed.hasEncounteredError() &&
+          Date.now() - this.preWarmTimestamp < this.PRE_WARM_TTL_MS &&
+          mode === ItoMode.TRANSCRIBE
+        ) {
+          this.sonioxService = preWarmed
+          this.sonioxService.on('error', (error: Error) => {
+            console.error(
+              '[itoSessionManager] Soniox streaming error:',
+              error.message,
+            )
+            this.handleSonioxStreamError(error)
+          })
+          console.log(
+            '[itoSessionManager] Reusing pre-warmed Soniox connection',
           )
-          this.handleSonioxStreamError(error)
-        })
-        await this.sonioxService.start(tempKey, this.getTranslationConfig())
+        } else {
+          if (preWarmed) {
+            preWarmed.cancel()
+          }
+          this.sonioxService = new SonioxStreamingService()
+          this.sonioxService.on('error', (error: Error) => {
+            console.error(
+              '[itoSessionManager] Soniox streaming error:',
+              error.message,
+            )
+            this.handleSonioxStreamError(error)
+          })
+          await this.sonioxService.start(tempKey, this.getTranslationConfig(), {
+            disableEndpointDetection: mode === ItoMode.TRANSCRIBE,
+          })
+        }
 
         if (generation !== this.sonioxSessionGeneration) {
           console.log(
@@ -391,6 +422,67 @@ export class ItoSessionManager {
 
     timingCollector.endTiming(TimingEventName.INTERACTION_ACTIVE)
 
+    const mode = this.currentMode
+    const service = this.sonioxService
+    this.sonioxService = null
+
+    if (mode === ItoMode.TRANSCRIBE) {
+      audioRecorderService.stopRecording()
+      if (this.sonioxAudioHandler) {
+        audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
+        this.sonioxAudioHandler = null
+      }
+      if (store.get(STORE_KEYS.SETTINGS)?.muteAudioWhenDictating) {
+        unmuteSystemAudio()
+      }
+
+      const rawTranscript = service?.getAccumulatedText() || ''
+      if (service) {
+        service.cancel()
+      }
+
+      recordingStateNotifier.notifyRecordingStopped()
+
+      if (!rawTranscript || rawTranscript.trim().length === 0) {
+        console.warn('[itoSessionManager] No speech detected from Soniox')
+        recordingStateNotifier.notifyProcessingStopped()
+        allowAppNap()
+        this.cleanupSonioxState()
+        return
+      }
+
+      let textToInsert = rawTranscript
+
+      const ctx = this.sonioxContext
+      if (ctx?.replacements && ctx.replacements.length > 0) {
+        textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+      }
+
+      const { grammarServiceEnabled } = getAdvancedSettings()
+      if (grammarServiceEnabled) {
+        textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+        textToInsert =
+          this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+      }
+
+      this.textInserter.insertText(textToInsert)
+      recordingStateNotifier.notifyProcessingStopped()
+
+      interactionManager
+        .createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+        .catch(error =>
+          console.error(
+            '[itoSessionManager] Failed to create interaction:',
+            error,
+          ),
+        )
+
+      allowAppNap()
+      this.cleanupSonioxState()
+      this.preWarmSonioxConnection()
+      return
+    }
+
     await voiceInputService.stopAudioRecording()
 
     if (this.sonioxAudioHandler) {
@@ -400,9 +492,6 @@ export class ItoSessionManager {
 
     recordingStateNotifier.notifyProcessingStarted()
     recordingStateNotifier.notifyRecordingStopped()
-
-    const service = this.sonioxService
-    this.sonioxService = null
 
     let rawTranscript = ''
     if (service) {
@@ -433,8 +522,6 @@ export class ItoSessionManager {
       }
       this.contextGatherPromise = null
     }
-
-    const mode = this.currentMode
 
     try {
       const { llm } = getAdvancedSettings()
@@ -533,6 +620,26 @@ export class ItoSessionManager {
     this.cleanupSonioxState()
   }
 
+  private applyCustomReplacements(
+    transcript: string,
+    replacements: Array<{ from: string; to: string }>,
+  ): string {
+    if (!replacements || replacements.length === 0) return transcript
+
+    let result = transcript
+    for (const replacement of replacements) {
+      const from = replacement.from
+      const to = replacement.to
+      if (!from || !to) continue
+      if (from.toLowerCase() === to.toLowerCase()) continue
+
+      const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`\\b${escaped}\\b`, 'gi')
+      result = result.replace(regex, to)
+    }
+    return result
+  }
+
   private buildUserDetailsContextString(
     userDetails: NonNullable<ContextData['userDetails']>,
   ): string {
@@ -584,6 +691,40 @@ export class ItoSessionManager {
     this.isSonioxMode = false
     this.sonioxContext = null
     this.contextGatherPromise = null
+  }
+
+  private preWarmSonioxConnection() {
+    if (this.preWarmedSonioxService) return
+    sonioxTempKeyManager
+      .getKey()
+      .then(async tempKey => {
+        if (this.preWarmedSonioxService || this.sonioxSessionActive) return
+        const service = new SonioxStreamingService()
+        service.on('error', () => {
+          if (this.preWarmedSonioxService === service) {
+            this.preWarmedSonioxService = null
+            this.preWarmTimestamp = 0
+          }
+        })
+        await service.start(tempKey, undefined, {
+          disableEndpointDetection: true,
+        })
+        if (this.sonioxSessionActive) {
+          service.cancel()
+          return
+        }
+        this.preWarmedSonioxService = service
+        this.preWarmTimestamp = Date.now()
+        console.log(
+          '[itoSessionManager] Pre-warmed Soniox connection ready',
+        )
+      })
+      .catch(error => {
+        console.warn(
+          '[itoSessionManager] Pre-warm Soniox connection failed:',
+          error,
+        )
+      })
   }
 
   private async handleTranscriptionResponse(result: {

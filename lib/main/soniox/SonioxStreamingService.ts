@@ -31,6 +31,7 @@ export class SonioxStreamingService extends EventEmitter {
   async start(
     tempApiKey: string,
     translationConfig?: SonioxTranslationConfig,
+    options?: { disableEndpointDetection?: boolean },
   ): Promise<void> {
     if (this.isActive) {
       console.warn(
@@ -49,7 +50,7 @@ export class SonioxStreamingService extends EventEmitter {
       audio_format: 'pcm_s16le',
       sample_rate: 16000,
       num_channels: 1,
-      enable_endpoint_detection: true,
+      enable_endpoint_detection: !options?.disableEndpointDetection,
       enable_language_identification: true,
     }
 
