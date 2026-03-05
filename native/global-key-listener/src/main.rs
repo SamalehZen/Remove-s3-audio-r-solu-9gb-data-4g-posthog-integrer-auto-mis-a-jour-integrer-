@@ -121,6 +121,24 @@ fn handle_command(command: Command) {
     io::stdout().flush().unwrap();
 }
 
+// Returns true if the key is a modifier key (Ctrl, Shift, Alt, Meta/Cmd).
+// Modifier keys must NOT be individually blocked — they pass through to the OS
+// so that Ctrl+C, Ctrl+V, Shift (capitals), Alt+Tab etc. keep working.
+// They are only blocked via should_block() when the FULL combo is active.
+fn is_modifier_key(key: &Key) -> bool {
+    matches!(
+        key,
+        Key::ControlLeft
+            | Key::ControlRight
+            | Key::ShiftLeft
+            | Key::ShiftRight
+            | Key::AltLeft
+            | Key::AltRight
+            | Key::MetaLeft
+            | Key::MetaRight
+    )
+}
+
 // Check if current pressed keys match any registered hotkey
 fn should_block() -> bool {
     unsafe {
@@ -245,13 +263,11 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keydown", &key);
 
-            // IMMEDIATE BLOCK: Check if this specific key is part of any registered hotkey
-            // This prevents modifier keys (Control, Windows, Alt, Fn) from reaching
-            // other applications when they are part of our hotkeys
-            if is_key_in_hotkeys(&key_name) {
-                // Key is used in at least one hotkey - block it from the system
-                // but still track it internally and output to our listener
-                // The event is silently consumed (not returned to the OS)
+            // IMMEDIATE BLOCK: Only block non-modifier trigger keys that are part of hotkeys.
+            // Modifier keys (Ctrl, Shift, Alt, Meta) are NEVER immediately blocked here:
+            // blocking them individually breaks Ctrl+C/V/Z, typing capitals, Alt+Tab, etc.
+            // They are only suppressed by should_block() when the FULL combo is active.
+            if !is_modifier_key(&key) && is_key_in_hotkeys(&key_name) {
                 return None;
             }
 
@@ -324,9 +340,8 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keyup", &key);
 
-            // IMMEDIATE BLOCK for key releases too
-            // If this key is part of any hotkey, block it from reaching other apps
-            if is_key_in_hotkeys(&key_name) {
+            // IMMEDIATE BLOCK for key releases too — only non-modifier trigger keys.
+            if !is_modifier_key(&key) && is_key_in_hotkeys(&key_name) {
                 return None;
             }
             if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
