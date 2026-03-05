@@ -331,6 +331,7 @@ const Pill = () => {
                       appTarget={state.context.appTarget}
                       contextSource={state.context.contextSource}
                       screenThumbnail={state.context.screenThumbnail}
+                      customModeName={state.context.customModeName}
                       onStop={handleStop}
                     />
                   )}

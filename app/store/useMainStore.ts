@@ -6,6 +6,7 @@ type PageType =
   | 'home'
   | 'dictionary'
   | 'notes'
+  | 'modes'
   | 'app-styling'
   | 'settings'
   | 'about'

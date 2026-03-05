@@ -16,6 +16,7 @@ interface PillRecordingContentProps {
   appTarget: { name: string; iconBase64: string | null } | null
   contextSource: 'screen' | 'selection' | null
   screenThumbnail: string | null
+  customModeName: string | null
   onStop: (e: React.MouseEvent) => void
 }
 
@@ -33,6 +34,7 @@ export const PillRecordingContent: React.FC<PillRecordingContentProps> = ({
   appTarget,
   contextSource,
   screenThumbnail,
+  customModeName,
   onStop,
 }) => (
   <motion.div
@@ -107,6 +109,25 @@ export const PillRecordingContent: React.FC<PillRecordingContentProps> = ({
         </motion.span>
       )}
     </div>
+
+    {customModeName && (
+      <motion.span
+        initial={{ scale: 0.7, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={IOS_SPRING_SNAPPY}
+        style={{
+          fontSize: 11,
+          color: 'rgba(200,205,215,0.85)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: 80,
+          flexShrink: 0,
+        }}
+      >
+        {customModeName}
+      </motion.span>
+    )}
 
     <div
       style={{
