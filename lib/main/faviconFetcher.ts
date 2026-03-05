@@ -85,7 +85,7 @@ function fetchImageAsBase64(url: string): Promise<string | null> {
             return
           }
           const buffer = Buffer.concat(chunks)
-          if (buffer.length < 200) {
+          if (buffer.length < 200 || buffer.length > 102400) {
             settle(null)
             return
           }
