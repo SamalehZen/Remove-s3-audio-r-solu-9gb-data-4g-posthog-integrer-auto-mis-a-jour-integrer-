@@ -19,6 +19,8 @@ export interface RecordingStatePayload {
   appTargetIconBase64?: string | null
   contextSource?: 'screen' | 'selection' | null
   screenThumbnailBase64?: string | null
+  customModeName?: string | null
+  customModeIcon?: string | null
 }
 
 export interface ProcessingStatePayload {
@@ -37,3 +39,10 @@ export type IpcResult<T> =
   | { success: false; error: string; errorType?: string }
 
 export type IpcResponse<T> = Promise<IpcResult<T>>
+
+export interface InstalledAppInfo {
+  name: string
+  exePath: string | null
+  bundleId: string | null
+  iconBase64: string | null
+}

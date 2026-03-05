@@ -55,6 +55,12 @@ export interface ContextData {
  * It collects vocabulary, window info, selected text, and settings.
  */
 export class ContextGrabber {
+  private customModePrompt: string | null = null
+
+  public setCustomModePrompt(prompt: string | null): void {
+    this.customModePrompt = prompt
+  }
+
   /**
    * Gather all context data needed for a transcription stream
    */
@@ -142,6 +148,21 @@ export class ContextGrabber {
     )
     const tone = resolved.tone
 
+    const effectiveTone =
+      this.customModePrompt
+        ? {
+            id: 'custom-mode-tone',
+            userId: null,
+            name: 'Custom Mode',
+            promptTemplate: this.customModePrompt,
+            isSystem: false,
+            sortOrder: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+          }
+        : tone
+
     console.log('[ContextGrabber] App name:', activeWindow?.appName)
     console.log(
       '[ContextGrabber] Tone found:',
@@ -163,7 +184,7 @@ export class ContextGrabber {
       browserUrl,
       browserDomain,
       advancedSettings,
-      tone,
+      tone: effectiveTone,
       screenCaptureBase64,
       screenThumbnailBase64,
       contextSource,

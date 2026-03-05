@@ -190,6 +190,19 @@ const api = {
     list: () => ipcRenderer.invoke('tones:list'),
     get: (id: string) => ipcRenderer.invoke('tones:get', id),
   },
+  customModes: {
+    list: () => ipcRenderer.invoke('custom-modes:list'),
+    get: (id: string) => ipcRenderer.invoke('custom-modes:get', id),
+    upsert: (data: any) => ipcRenderer.invoke('custom-modes:upsert', data),
+    delete: (id: string) => ipcRenderer.invoke('custom-modes:delete', id),
+  },
+  modeRules: {
+    list: (modeId: string) => ipcRenderer.invoke('mode-rules:list', modeId),
+    add: (data: any) => ipcRenderer.invoke('mode-rules:add', data),
+    delete: (id: string) => ipcRenderer.invoke('mode-rules:delete', id),
+    listInstalledAppsWithIcons: () =>
+      ipcRenderer.invoke('mode-rules:list-installed-apps-with-icons'),
+  },
   trial: {
     complete: () => ipcRenderer.invoke('trial:complete'),
     startAfterOnboarding: () =>

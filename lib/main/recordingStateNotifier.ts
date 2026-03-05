@@ -64,8 +64,12 @@ export class RecordingStateNotifier {
   private generation = 0
   private isCurrentlyRecording = false
   private windowChangeHandler: ((window: any) => void) | null = null
+  private browserUrlChangeHandler: ((domain: string | null) => void) | null =
+    null
   private lastSentAppName: string | null = null
   private lastSentAppIcon: string | null = null
+  private currentCustomModeName: string | null = null
+  private currentCustomModeIcon: string | null = null
   private static readonly MAX_FAVICON_CACHE_SIZE = 50
   private faviconCache = new Map<string, string>()
 
@@ -92,6 +96,14 @@ export class RecordingStateNotifier {
     return null
   }
 
+  public setCustomMode(
+    name: string | null,
+    icon: string | null,
+  ): void {
+    this.currentCustomModeName = name
+    this.currentCustomModeIcon = icon
+  }
+
   public notifyRecordingStarted(
     mode: ItoMode,
     contextSource?: 'screen' | 'selection' | null,
@@ -109,6 +121,8 @@ export class RecordingStateNotifier {
         mode,
         contextSource: contextSource ?? undefined,
         screenThumbnailBase64: screenThumbnailBase64 ?? undefined,
+        customModeName: this.currentCustomModeName ?? undefined,
+        customModeIcon: this.currentCustomModeIcon ?? undefined,
       })
     }
   }
@@ -152,6 +166,8 @@ export class RecordingStateNotifier {
       appTargetIconBase64: immediateIcon,
       contextSource: contextSource ?? undefined,
       screenThumbnailBase64: screenThumbnailBase64 ?? undefined,
+      customModeName: this.currentCustomModeName ?? undefined,
+      customModeIcon: this.currentCustomModeIcon ?? undefined,
     })
 
     // For browsers: resolve domain name and favicon asynchronously
@@ -176,6 +192,8 @@ export class RecordingStateNotifier {
             mode,
             appTargetName: result.name,
             appTargetIconBase64: resolvedIcon,
+            customModeName: this.currentCustomModeName ?? undefined,
+            customModeIcon: this.currentCustomModeIcon ?? undefined,
           })
         })
         .catch(() => {})
@@ -187,6 +205,8 @@ export class RecordingStateNotifier {
     this.isCurrentlyRecording = false
     this.lastSentAppName = null
     this.lastSentAppIcon = null
+    this.currentCustomModeName = null
+    this.currentCustomModeIcon = null
     this.teardownWindowChangeListener()
     this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
       isRecording: false,
@@ -246,16 +266,49 @@ export class RecordingStateNotifier {
         mode,
         appTargetName: result.name,
         appTargetIconBase64: resolvedIcon,
+        customModeName: this.currentCustomModeName ?? undefined,
+        customModeIcon: this.currentCustomModeIcon ?? undefined,
       })
     }
 
     activeWindowMonitor.on('window-changed', this.windowChangeHandler)
+
+    this.browserUrlChangeHandler = async () => {
+      if (gen !== this.generation) return
+      const result = await this.resolveAppTargetWithIcon()
+      if (gen !== this.generation) return
+      if (!result) return
+      const resolvedIcon = result.iconBase64 ?? null
+      if (
+        result.name === this.lastSentAppName &&
+        resolvedIcon === this.lastSentAppIcon
+      )
+        return
+      this.lastSentAppName = result.name
+      this.lastSentAppIcon = resolvedIcon
+      this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
+        isRecording: true,
+        mode,
+        appTargetName: result.name,
+        appTargetIconBase64: resolvedIcon,
+        customModeName: this.currentCustomModeName ?? undefined,
+        customModeIcon: this.currentCustomModeIcon ?? undefined,
+      })
+    }
+    activeWindowMonitor.on('browser-url-changed', this.browserUrlChangeHandler)
   }
 
   private teardownWindowChangeListener(): void {
     if (this.windowChangeHandler) {
       activeWindowMonitor.off('window-changed', this.windowChangeHandler)
       this.windowChangeHandler = null
+    }
+    if (this.browserUrlChangeHandler) {
+      activeWindowMonitor.off(
+        'browser-url-changed',
+        this.browserUrlChangeHandler,
+      )
+      this.browserUrlChangeHandler = null
     }
   }
 

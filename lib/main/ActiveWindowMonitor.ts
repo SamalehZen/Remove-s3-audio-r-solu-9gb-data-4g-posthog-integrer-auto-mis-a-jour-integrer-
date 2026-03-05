@@ -6,6 +6,28 @@ import { getBrowserUrl, type BrowserUrlInfo } from '../media/browser-url'
 
 const NATIVE_MODULE_NAME = 'active-application'
 const HEARTBEAT_CHECK_INTERVAL_MS = 5000
+const BROWSER_POLL_INTERVAL_MS = 1000
+
+const KNOWN_BROWSERS = new Set([
+  'google chrome',
+  'chrome',
+  'chromium',
+  'firefox',
+  'mozilla firefox',
+  'safari',
+  'microsoft edge',
+  'edge',
+  'brave',
+  'brave browser',
+  'opera',
+  'opera gx',
+  'vivaldi',
+  'arc',
+  'zen',
+  'orion',
+  'waterfox',
+  'thorium',
+])
 const HEARTBEAT_TIMEOUT_MS = 15000
 const MAX_RESTART_ATTEMPTS = 5
 const RESTART_BACKOFF_BASE_MS = 1000
@@ -62,6 +84,8 @@ export class ActiveWindowMonitor extends EventEmitter {
   private static readonly MAX_ICON_CACHE_SIZE = 50
   private iconCache = new Map<string, string>()
   private iconFetchInProgress = new Set<string>()
+  private browserPollInterval: NodeJS.Timeout | null = null
+  private lastPolledDomain: string | null = null
 
   public start(): void {
     if (this.process) return
@@ -146,6 +170,7 @@ export class ActiveWindowMonitor extends EventEmitter {
 
   public stop(): void {
     this.isStopped = true
+    this.stopBrowserUrlPolling()
     this.stopHeartbeatChecker()
     if (this.process) {
       this.process.kill()
@@ -346,7 +371,47 @@ export class ActiveWindowMonitor extends EventEmitter {
 
       this.scheduleBrowserUrlFetch(window)
       this.emit('window-changed', window)
+
+      if (this.isBrowserApp(window.appName)) {
+        this.startBrowserUrlPolling()
+      } else {
+        this.stopBrowserUrlPolling()
+      }
     }
+  }
+
+  private isBrowserApp(appName: string): boolean {
+    return KNOWN_BROWSERS.has(appName.toLowerCase())
+  }
+
+  private startBrowserUrlPolling(): void {
+    this.stopBrowserUrlPolling()
+    this.lastPolledDomain = this.cachedState?.browserInfo?.domain ?? null
+    this.browserPollInterval = setInterval(async () => {
+      if (!this.cachedState?.window) return
+      try {
+        const browserInfo = await getBrowserUrl(this.cachedState.window)
+        const newDomain = browserInfo.domain ?? null
+        if (newDomain !== this.lastPolledDomain) {
+          this.lastPolledDomain = newDomain
+          this.cachedState = {
+            window: this.cachedState.window,
+            browserInfo,
+            iconBase64: this.cachedState.iconBase64,
+            timestamp: Date.now(),
+          }
+          this.emit('browser-url-changed', newDomain)
+        }
+      } catch {}
+    }, BROWSER_POLL_INTERVAL_MS)
+  }
+
+  private stopBrowserUrlPolling(): void {
+    if (this.browserPollInterval) {
+      clearInterval(this.browserPollInterval)
+      this.browserPollInterval = null
+    }
+    this.lastPolledDomain = null
   }
 
   private scheduleBrowserUrlFetch(window: ActiveWindow): void {

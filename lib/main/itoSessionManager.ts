@@ -19,6 +19,9 @@ import { audioRecorderService } from '../media/audio'
 import { unmuteSystemAudio } from '../media/systemAudio'
 import { itoHttpClient } from '../clients/itoHttpClient'
 import { STORE_KEYS } from '../constants/store-keys'
+import { customModeResolver } from './context/CustomModeResolver'
+import { activeWindowMonitor } from './ActiveWindowMonitor'
+import type { ResolvedCustomMode } from './context/CustomModeResolver'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
@@ -44,9 +47,42 @@ export class ItoSessionManager {
   private preWarmedSonioxService: SonioxStreamingService | null = null
   private preWarmTimestamp = 0
   private readonly PRE_WARM_TTL_MS = 30_000
+  private resolvedCustomMode: ResolvedCustomMode | null = null
 
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
+
+    try {
+      const cached = activeWindowMonitor.getCachedState()
+      if (cached?.window) {
+        const resolved = await customModeResolver.resolve({
+          domain: cached.browserInfo?.domain ?? null,
+          bundleId: cached.window.bundleId ?? null,
+          exePath: cached.window.exePath ?? null,
+          appName: cached.window.appName ?? null,
+        })
+        if (resolved) {
+          this.resolvedCustomMode = resolved
+          recordingStateNotifier.setCustomMode(
+            resolved.mode.name,
+            resolved.mode.icon,
+          )
+          contextGrabber.setCustomModePrompt(
+            resolved.mode.promptTemplate || null,
+          )
+          console.log(
+            '[itoSessionManager] Auto-activated custom mode:',
+            resolved.mode.name,
+          )
+        }
+      }
+    } catch (error) {
+      console.error(
+        '[itoSessionManager] Custom mode resolution failed:',
+        error,
+      )
+    }
+
     this.currentMode = mode
 
     let interactionId = interactionManager.getCurrentInteractionId()
@@ -288,6 +324,9 @@ export class ItoSessionManager {
   }
 
   public async cancelSession() {
+    contextGrabber.setCustomModePrompt(null)
+    this.resolvedCustomMode = null
+
     if (this.isSonioxMode) {
       this.sonioxSessionActive = false
       this.sonioxSessionGeneration++
@@ -396,6 +435,8 @@ export class ItoSessionManager {
         await this.handleTranscriptionError(error)
       } finally {
         recordingStateNotifier.notifyProcessingStopped()
+        contextGrabber.setCustomModePrompt(null)
+        this.resolvedCustomMode = null
       }
     } else {
       console.warn('[itoSessionManager] No stream response promise to wait for')
@@ -695,6 +736,8 @@ export class ItoSessionManager {
     this.isSonioxMode = false
     this.sonioxContext = null
     this.contextGatherPromise = null
+    contextGrabber.setCustomModePrompt(null)
+    this.resolvedCustomMode = null
   }
 
   private preWarmSonioxConnection() {

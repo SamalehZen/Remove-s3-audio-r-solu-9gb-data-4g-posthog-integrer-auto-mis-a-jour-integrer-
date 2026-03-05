@@ -1191,3 +1191,78 @@ ipcMain.handle('tones:list', async () => {
 ipcMain.handle('tones:get', async (_event, id: string) => {
   return ToneTable.findById(id)
 })
+
+// Custom Modes
+import {
+  CustomModeTable,
+  ModeActivationRuleTable,
+} from '../main/sqlite/customModeRepo'
+import { customModeResolver } from '../main/context/CustomModeResolver'
+import {
+  listInstalledAppsWithIcons,
+  type InstalledAppInfo,
+} from '../main/installedAppsHelper'
+
+ipcMain.handle('custom-modes:list', async () => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  return CustomModeTable.findAll(userId)
+})
+
+ipcMain.handle('custom-modes:get', async (_event, id: string) => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  return CustomModeTable.findById(id, userId)
+})
+
+ipcMain.handle('custom-modes:upsert', async (_event, data: any) => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  return CustomModeTable.upsert({ ...data, userId })
+})
+
+ipcMain.handle('custom-modes:delete', async (_event, id: string) => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  await ModeActivationRuleTable.deleteByMode(id, userId)
+  await CustomModeTable.delete(id, userId)
+  customModeResolver.clearCache()
+})
+
+ipcMain.handle('mode-rules:list', async (_event, modeId: string) => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  return ModeActivationRuleTable.findAllByMode(modeId, userId)
+})
+
+ipcMain.handle('mode-rules:add', async (_event, data: any) => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  const result = await ModeActivationRuleTable.add({ ...data, userId })
+  customModeResolver.clearCache()
+  return result
+})
+
+ipcMain.handle('mode-rules:delete', async (_event, id: string) => {
+  await ModeActivationRuleTable.delete(id)
+  customModeResolver.clearCache()
+})
+
+let installedAppsCache: InstalledAppInfo[] | null = null
+let installedAppsCacheTime = 0
+const CACHE_TTL = 5 * 60 * 1000
+
+ipcMain.handle(
+  'mode-rules:list-installed-apps-with-icons',
+  async () => {
+    if (
+      installedAppsCache &&
+      Date.now() - installedAppsCacheTime < CACHE_TTL
+    ) {
+      return installedAppsCache
+    }
+    try {
+      const apps = await listInstalledAppsWithIcons()
+      installedAppsCache = apps
+      installedAppsCacheTime = Date.now()
+      return apps
+    } catch (error) {
+      console.error('[ListInstalledAppsWithIcons] Failed:', error)
+      return []
+    }
+  },
+)
