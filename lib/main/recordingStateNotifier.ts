@@ -68,6 +68,22 @@ export class RecordingStateNotifier {
   private static readonly MAX_FAVICON_CACHE_SIZE = 50
   private faviconCache = new Map<string, string>()
 
+  constructor() {
+    // Pre-fetch favicons whenever the browser URL changes so they are
+    // instantly available when recording starts — zero Chrome-icon flash.
+    activeWindowMonitor.on('browser-url-changed', () => {
+      const cached = activeWindowMonitor.getCachedState()
+      const domain = cached?.browserInfo?.domain
+      if (!domain || this.isBrowserHomeDomain(domain)) return
+      const normalized = this.normalizeDomain(domain)
+      if (!this.getCachedFavicon(normalized)) {
+        fetchFavicon(normalized)
+          .then(favicon => { if (favicon) this.setFaviconCache(normalized, favicon) })
+          .catch(() => {})
+      }
+    })
+  }
+
   private setFaviconCache(domain: string, icon: string): void {
     this.faviconCache.delete(domain)
     this.faviconCache.set(domain, icon)
@@ -136,16 +152,30 @@ export class RecordingStateNotifier {
     if (cached?.window?.appName) {
       const lowerName = cached.window.appName.toLowerCase()
       if (!BLOCKED_APPS.has(lowerName)) {
-        immediateName = cached.window.appName
-        // Use cached icon immediately, don't block for pending fetches
-        immediateIcon = cached.iconBase64 ?? null
+        const windowIsBrowser = this.isBrowserApp(cached.window.appName)
+        const domain = cached.browserInfo?.domain
+        const isRealDomain =
+          !!domain && windowIsBrowser && !this.isBrowserHomeDomain(domain)
 
-        // Try to get icon from cache without waiting
-        if (!immediateIcon) {
-          const cacheKey = activeWindowMonitor.getIconCacheKeyForWindow(
-            cached.window,
-          )
-          immediateIcon = activeWindowMonitor.getCachedIcon(cacheKey)
+        if (isRealDomain) {
+          // Browser on a real website: use domain name + pre-fetched favicon
+          // so the pill shows the website icon immediately with zero Chrome flash
+          const normalizedDomain = this.normalizeDomain(domain!)
+          immediateName = normalizedDomain
+          immediateIcon =
+            this.getCachedFavicon(normalizedDomain) ??
+            cached.iconBase64 ??
+            null
+        } else {
+          // Regular app or browser on home/search page: use app name + app icon
+          immediateName = cached.window.appName
+          immediateIcon = cached.iconBase64 ?? null
+          if (!immediateIcon) {
+            const cacheKey = activeWindowMonitor.getIconCacheKeyForWindow(
+              cached.window,
+            )
+            immediateIcon = activeWindowMonitor.getCachedIcon(cacheKey)
+          }
         }
       }
     }
@@ -166,9 +196,10 @@ export class RecordingStateNotifier {
       customModeIcon: this.currentCustomModeIcon ?? undefined,
     })
 
-    // For browsers: resolve domain name and favicon asynchronously
-    // This avoids blocking the recording start while fetching the URL
-    const isBrowser = !!immediateName && this.isBrowserApp(immediateName)
+    // For browsers: resolve domain name and favicon asynchronously (fallback
+    // for when favicon was not yet pre-cached, or URL not yet resolved)
+    const isBrowser =
+      !!cached?.window?.appName && this.isBrowserApp(cached.window.appName)
     if (isBrowser) {
       // Fire-and-forget URL resolution - will send update when ready
       this.resolveAppTargetWithIcon()
