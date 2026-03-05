@@ -52,6 +52,8 @@ export class ItoSessionManager {
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
 
+    let effectiveMode = mode
+
     try {
       const cached = activeWindowMonitor.getCachedState()
       if (cached?.window) {
@@ -70,9 +72,16 @@ export class ItoSessionManager {
           contextGrabber.setCustomModePrompt(
             resolved.mode.promptTemplate || null,
           )
+          // Override ItoMode with the custom mode's configured itoMode so that
+          // modes with a prompt (Note, Mail, Message…) go through LLM post-processing
+          if (resolved.mode.itoMode > 0) {
+            effectiveMode = resolved.mode.itoMode as ItoMode
+          }
           console.log(
             '[itoSessionManager] Auto-activated custom mode:',
             resolved.mode.name,
+            '→ effectiveMode:',
+            effectiveMode,
           )
         }
       }
@@ -83,7 +92,7 @@ export class ItoSessionManager {
       )
     }
 
-    this.currentMode = mode
+    this.currentMode = effectiveMode
 
     let interactionId = interactionManager.getCurrentInteractionId()
     if (interactionId) {
@@ -100,13 +109,13 @@ export class ItoSessionManager {
     const isSoniox = llm?.asrProvider === 'soniox'
 
     if (
-      mode === ItoMode.TRANSLATE ||
-      mode === ItoMode.CONTEXT_AWARENESS ||
+      effectiveMode === ItoMode.TRANSLATE ||
+      effectiveMode === ItoMode.CONTEXT_AWARENESS ||
       isSoniox
     ) {
-      await this.startSonioxSession(mode)
+      await this.startSonioxSession(effectiveMode)
     } else {
-      await this.startGrpcSession(mode)
+      await this.startGrpcSession(effectiveMode)
     }
 
     return interactionId
