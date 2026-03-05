@@ -53,6 +53,7 @@ export class ItoSessionManager {
     console.log('[itoSessionManager] Starting session with mode:', mode)
 
     let effectiveMode = mode
+    contextGrabber.setCustomModePrompt(null)
 
     try {
       const cached = activeWindowMonitor.getCachedState()

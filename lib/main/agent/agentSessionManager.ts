@@ -88,6 +88,9 @@ class AgentSessionManager {
     console.info('[AgentSession] ══════ SESSION START ══════')
     interactionManager.initialize()
 
+    contextGrabber.setCustomModePrompt(null)
+    recordingStateNotifier.setCustomMode(null, null)
+
     try {
       const cached = activeWindowMonitor.getCachedState()
       if (cached?.window) {
@@ -247,6 +250,7 @@ class AgentSessionManager {
         })
         this.broadcastWindowState()
       } finally {
+        contextGrabber.setCustomModePrompt(null)
         recordingStateNotifier.notifyProcessingStopped()
         allowAppNap()
         itoStreamController.clearInteractionAudio()
@@ -256,6 +260,7 @@ class AgentSessionManager {
       }
     } else {
       console.warn('[AgentSession] No responsePromise available — session may have been cancelled')
+      contextGrabber.setCustomModePrompt(null)
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
       this.resetToolState()
@@ -306,6 +311,7 @@ class AgentSessionManager {
     } catch (error) {
       console.error('[AgentSession] Agent error:', error)
     } finally {
+      contextGrabber.setCustomModePrompt(null)
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
       this.resetToolState()
@@ -444,6 +450,7 @@ class AgentSessionManager {
       itoStreamController.clearInteractionAudio()
     }
 
+    contextGrabber.setCustomModePrompt(null)
     recordingStateNotifier.notifyRecordingStopped()
     recordingStateNotifier.notifyProcessingStopped()
     allowAppNap()
