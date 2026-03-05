@@ -2,8 +2,32 @@ import { net } from 'electron'
 
 const KNOWN_DEFAULT_FAVICON_SIZES = new Set([726, 276, 124])
 
+function isSubdomain(domain: string): boolean {
+  const parts = domain.split('.')
+  return parts.length > 2 && parts[0] !== 'www'
+}
+
 export async function fetchFavicon(domain: string): Promise<string | null> {
   const googleUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+  const directUrl = `https://${domain}/favicon.ico`
+
+  if (isSubdomain(domain)) {
+    try {
+      const base64 = await fetchImageAsBase64(directUrl)
+      if (base64) return base64
+    } catch (error) {
+      console.warn('[FaviconFetcher] Direct fetch failed for', domain, error)
+    }
+
+    try {
+      const base64 = await fetchImageAsBase64(googleUrl)
+      if (base64 && !isDefaultGoogleFavicon(base64)) return base64
+    } catch (error) {
+      console.warn('[FaviconFetcher] Google API failed for', domain, error)
+    }
+
+    return null
+  }
 
   try {
     const base64 = await fetchImageAsBase64(googleUrl)
@@ -11,8 +35,6 @@ export async function fetchFavicon(domain: string): Promise<string | null> {
   } catch (error) {
     console.warn('[FaviconFetcher] Google API failed for', domain, error)
   }
-
-  const directUrl = `https://${domain}/favicon.ico`
 
   try {
     const base64 = await fetchImageAsBase64(directUrl)
