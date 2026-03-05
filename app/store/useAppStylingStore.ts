@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { normalizeAppTargetId } from '@/lib/utils/appTargetUtils'
 
 export type MatchType = 'app' | 'domain'
 
@@ -16,57 +15,18 @@ export type AppTarget = {
   deletedAt: string | null
 }
 
-export type DetectedContext = {
-  appName: string
-  browserUrl: string | null
-  browserDomain: string | null
-  suggestedMatchType: MatchType
-  iconBase64: string | null
-  domainIconBase64: string | null
-  bundleId: string | null
-  exePath: string | null
-}
-
-export type Tone = {
-  id: string
-  userId: string | null
-  name: string
-  promptTemplate: string
-  isSystem: boolean
-  sortOrder: number
-  createdAt: string
-  updatedAt: string
-  deletedAt: string | null
-}
-
 type AppStylingState = {
   appTargets: Record<string, AppTarget>
-  tones: Record<string, Tone>
   isLoading: boolean
-  detectedContext: DetectedContext | null
 
   loadAppTargets: () => Promise<void>
-  loadTones: () => Promise<void>
-  detectCurrentApp: () => Promise<DetectedContext | null>
-  registerApp: (
-    matchType: MatchType,
-    appName: string,
-    domain?: string | null,
-    iconBase64?: string | null,
-    bundleId?: string | null,
-    exePath?: string | null,
-  ) => Promise<AppTarget | null>
-  updateAppTone: (appId: string, toneId: string | null) => Promise<void>
   deleteAppTarget: (appId: string) => Promise<void>
   getCurrentAppTarget: () => Promise<AppTarget | null>
-  clearDetectedContext: () => void
 }
 
 export const useAppStylingStore = create<AppStylingState>(set => ({
   appTargets: {},
-  tones: {},
   isLoading: false,
-  detectedContext: null,
 
   loadAppTargets: async () => {
     set({ isLoading: true })
@@ -85,93 +45,6 @@ export const useAppStylingStore = create<AppStylingState>(set => ({
       console.error('Failed to load app targets:', error)
     } finally {
       set({ isLoading: false })
-    }
-  },
-
-  loadTones: async () => {
-    try {
-      const tones = await window.api.tones.list()
-      set({
-        tones: tones.reduce((acc: Record<string, Tone>, t: Tone) => {
-          acc[t.id] = t
-          return acc
-        }, {}),
-      })
-    } catch (error) {
-      console.error('Failed to load tones:', error)
-    }
-  },
-
-  detectCurrentApp: async () => {
-    try {
-      const context = await window.api.appTargets.detectCurrent()
-      if (context) {
-        set({ detectedContext: context })
-      }
-      return context
-    } catch (error) {
-      console.error('Failed to detect current app:', error)
-      return null
-    }
-  },
-
-  registerApp: async (
-    matchType: MatchType,
-    appName: string,
-    domain?: string | null,
-    iconBase64?: string | null,
-    bundleId?: string | null,
-    exePath?: string | null,
-  ) => {
-    try {
-      const id =
-        matchType === 'domain' && domain
-          ? `domain:${domain}`
-          : normalizeAppTargetId(appName)
-
-      const name = matchType === 'domain' && domain ? domain : appName
-
-      const target = await window.api.appTargets.upsert({
-        id,
-        name,
-        matchType,
-        domain: domain ?? null,
-        iconBase64: iconBase64 ?? null,
-        bundleId: bundleId ?? null,
-        exePath: exePath ?? null,
-      })
-      if (target) {
-        set(state => ({
-          appTargets: { ...state.appTargets, [target.id]: target },
-          detectedContext: null,
-        }))
-      }
-      return target
-    } catch (error) {
-      console.error('Failed to register app:', error)
-      return null
-    }
-  },
-
-  clearDetectedContext: () => {
-    set({ detectedContext: null })
-  },
-
-  updateAppTone: async (appId: string, toneId: string | null) => {
-    try {
-      await window.api.appTargets.updateTone(appId, toneId)
-      set(state => {
-        const existing = state.appTargets[appId]
-        if (!existing) return state
-        return {
-          appTargets: {
-            ...state.appTargets,
-            [appId]: { ...existing, toneId },
-          },
-        }
-      })
-    } catch (error) {
-      console.error('Failed to update app tone:', error)
     }
   },
 

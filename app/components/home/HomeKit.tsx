@@ -2,7 +2,6 @@ import {
   Home,
   BookOpen,
   FileText,
-  Sparkles,
   CogFour,
   InfoCircle,
   PanelLeft,
@@ -23,7 +22,6 @@ import DictionaryContent from './contents/DictionaryContent'
 import NotesContent from './contents/NotesContent'
 import SettingsContent from './contents/SettingsContent'
 import AboutContent from './contents/AboutContent'
-import AppStylingContent from './contents/AppStylingContent'
 import ModesContent from './contents/ModesContent'
 
 export default function HomeKit() {
@@ -193,8 +191,6 @@ export default function HomeKit() {
         return <NotesContent />
       case 'modes':
         return <ModesContent />
-      case 'app-styling':
-        return <AppStylingContent />
       case 'about':
         return <AboutContent />
       default:
@@ -260,13 +256,6 @@ export default function HomeKit() {
               isActive={currentPage === 'modes'}
               showText={showText}
               onClick={() => setCurrentPage('modes')}
-            />
-            <NavItem
-              icon={<Sparkles className="w-5 h-5" />}
-              label="App Styling"
-              isActive={currentPage === 'app-styling'}
-              showText={showText}
-              onClick={() => setCurrentPage('app-styling')}
             />
             <NavItem
               icon={<CogFour className="w-5 h-5" />}

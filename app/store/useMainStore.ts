@@ -7,7 +7,6 @@ type PageType =
   | 'dictionary'
   | 'notes'
   | 'modes'
-  | 'app-styling'
   | 'settings'
   | 'about'
 type SettingsPageType =
