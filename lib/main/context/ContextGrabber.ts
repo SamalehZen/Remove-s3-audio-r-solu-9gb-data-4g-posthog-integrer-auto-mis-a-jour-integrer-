@@ -14,7 +14,6 @@ import {
 import { getBrowserUrl } from '../../media/browser-url'
 import { canGetContextFromCurrentApp } from '../../utils/applicationDetection'
 import log from 'electron-log'
-import { persistentContextDetector } from './PersistentContextDetector'
 import { captureScreen, CaptureMode } from '../../media/screenCapture'
 import { STORE_KEYS } from '../../constants/store-keys'
 import { activeWindowMonitor } from '../ActiveWindowMonitor'
@@ -137,41 +136,22 @@ export class ContextGrabber {
     // Get advanced settings
     const advancedSettings = getAdvancedSettings()
 
-    // Resolve tone via hybrid detection — reuses activeWindow + browserDomain, 0 extra binary calls
-    const resolved = await timingCollector.timeAsync(
-      TimingEventName.WINDOW_CONTEXT_GATHER,
-      async () =>
-        await persistentContextDetector.resolveForWindow(
-          activeWindow,
-          browserDomain,
-        ),
-    )
-    const tone = resolved.tone
-
-    const effectiveTone =
-      this.customModePrompt
-        ? {
-            id: 'custom-mode-tone',
-            userId: null,
-            name: 'Custom Mode',
-            promptTemplate: this.customModePrompt,
-            isSystem: false,
-            sortOrder: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            deletedAt: null,
-          }
-        : tone
+    const effectiveTone = this.customModePrompt
+      ? {
+          id: 'custom-mode-tone',
+          userId: null,
+          name: 'Custom Mode',
+          promptTemplate: this.customModePrompt,
+          isSystem: false,
+          sortOrder: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          deletedAt: null,
+        }
+      : null
 
     console.log('[ContextGrabber] App name:', activeWindow?.appName)
-    console.log(
-      '[ContextGrabber] Tone found:',
-      tone?.name,
-      '| via signature:',
-      resolved.signature,
-      '| type:',
-      resolved.signatureType,
-    )
+    console.log('[ContextGrabber] Active mode prompt:', this.customModePrompt ? 'custom mode' : 'none')
     console.log('[ContextGrabber] Context gathered successfully')
 
     return {

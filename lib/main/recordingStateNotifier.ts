@@ -8,14 +8,8 @@ import {
 import { getActiveWindowWithIcon } from '../media/active-application'
 import type { ActiveWindowWithIcon } from '../media/active-application'
 import { getBrowserUrl } from '../media/browser-url'
-import { persistentContextDetector } from './context/PersistentContextDetector'
-import { AppTargetTable } from './sqlite/appTargetRepo'
-import { getCurrentUserId } from './store'
-import { normalizeAppTargetId } from '../utils/appTargetUtils'
 import { fetchFavicon } from './faviconFetcher'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
-
-const DEFAULT_LOCAL_USER_ID = 'local-user'
 const DETECTION_TIMEOUT_MS = 800
 
 const BROWSER_URL_TIMEOUT_MS = 500
@@ -402,22 +396,6 @@ export class RecordingStateNotifier {
       return this.resolveDomainTarget(browserInfo.domain!, window)
     }
 
-    const resolved = await persistentContextDetector.resolveForWindow(
-      window,
-      browserInfo.domain,
-    )
-
-    if (resolved.target) {
-      return {
-        name: resolved.target.name,
-        iconBase64: window.iconBase64 || resolved.target.iconBase64,
-      }
-    }
-
-    this.autoRegisterApp(window, browserInfo.domain).catch(err => {
-      console.warn('[RecordingStateNotifier] Auto-register failed:', err)
-    })
-
     return {
       name: window.appName,
       iconBase64: window.iconBase64 || null,
@@ -433,152 +411,18 @@ export class RecordingStateNotifier {
       exePath?: string | null
     },
   ): Promise<{ name: string; iconBase64: string | null }> {
-    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
     const domain = this.normalizeDomain(rawDomain)
 
-    const existingTarget = await AppTargetTable.findByDomain(domain, userId)
-
-    if (existingTarget) {
-      if (existingTarget.iconBase64) {
-        return {
-          name: existingTarget.name,
-          iconBase64: existingTarget.iconBase64,
-        }
-      }
-
-      const cachedFavicon = this.getCachedFavicon(domain)
-      if (cachedFavicon) {
-        return {
-          name: existingTarget.name,
-          iconBase64: cachedFavicon,
-        }
-      }
-
-      this.fetchAndUpdateFavicon(existingTarget.id, domain).catch(err => {
-        console.warn('[RecordingStateNotifier] Favicon re-fetch failed:', err)
-      })
-
-      return {
-        name: existingTarget.name,
-        iconBase64: window.iconBase64 || null,
-      }
+    const cachedFavicon = this.getCachedFavicon(domain)
+    if (cachedFavicon) {
+      return { name: domain, iconBase64: cachedFavicon }
     }
 
-    this.autoRegisterDomainTarget(domain, window).catch(err => {
-      console.warn('[RecordingStateNotifier] Auto-register domain failed:', err)
-    })
+    fetchFavicon(domain)
+      .then(favicon => { if (favicon) this.setFaviconCache(domain, favicon) })
+      .catch(() => {})
 
-    return {
-      name: domain,
-      iconBase64: window.iconBase64 || null,
-    }
-  }
-
-  private async autoRegisterDomainTarget(
-    domain: string,
-    window: {
-      appName: string
-      iconBase64?: string | null
-      bundleId?: string | null
-      exePath?: string | null
-    },
-  ): Promise<void> {
-    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
-    const appId = normalizeAppTargetId(`domain_${domain}`)
-
-    const existing = await AppTargetTable.findById(appId, userId)
-    if (existing) return
-
-    const favicon = await fetchFavicon(domain)
-    if (favicon) {
-      this.setFaviconCache(domain, favicon)
-    }
-
-    await AppTargetTable.upsert({
-      id: appId,
-      userId,
-      name: domain,
-      matchType: 'domain',
-      domain: domain,
-      toneId: null,
-      iconBase64: favicon || null,
-    })
-
-    await persistentContextDetector.registerSignaturesForTarget(
-      appId,
-      null,
-      null,
-      domain,
-    )
-
-    console.log(
-      `[RecordingStateNotifier] Auto-registered domain: ${domain} (${appId})${favicon ? ' with favicon' : ' without favicon'}`,
-    )
-  }
-
-  private async fetchAndUpdateFavicon(
-    targetId: string,
-    domain: string,
-  ): Promise<void> {
-    const favicon = await fetchFavicon(domain)
-    if (!favicon) return
-
-    this.setFaviconCache(domain, favicon)
-
-    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
-    const target = await AppTargetTable.findById(targetId, userId)
-    if (!target) return
-
-    await AppTargetTable.upsert({
-      id: target.id,
-      userId: target.userId,
-      name: target.name,
-      matchType: target.matchType,
-      domain: target.domain,
-      toneId: target.toneId,
-      iconBase64: favicon,
-    })
-
-    console.log(
-      `[RecordingStateNotifier] Updated favicon for domain: ${domain}`,
-    )
-  }
-
-  private async autoRegisterApp(
-    window: {
-      appName: string
-      iconBase64?: string | null
-      bundleId?: string | null
-      exePath?: string | null
-    },
-    browserDomain: string | null,
-  ): Promise<void> {
-    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
-    const appId = normalizeAppTargetId(window.appName)
-
-    const existing = await AppTargetTable.findById(appId, userId)
-    if (existing) return
-
-    await AppTargetTable.upsert({
-      id: appId,
-      userId,
-      name: window.appName,
-      matchType: 'app',
-      domain: browserDomain,
-      toneId: null,
-      iconBase64: window.iconBase64 || null,
-    })
-
-    await persistentContextDetector.registerSignaturesForTarget(
-      appId,
-      window.bundleId || null,
-      window.exePath || null,
-      browserDomain,
-    )
-
-    console.log(
-      `[RecordingStateNotifier] Auto-registered app: ${window.appName} (${appId})`,
-    )
+    return { name: domain, iconBase64: window.iconBase64 || null }
   }
 
   private sendToWindows(
