@@ -64,6 +64,7 @@ export class RecordingStateNotifier {
   private lastSentAppIcon: string | null = null
   private currentCustomModeName: string | null = null
   private currentCustomModeIcon: string | null = null
+  private currentMode: ItoMode | null = null
   private static readonly MAX_FAVICON_CACHE_SIZE = 50
   private faviconCache = new Map<string, string>()
 
@@ -106,6 +107,7 @@ export class RecordingStateNotifier {
     const gen = ++this.generation
     const isNewRecording = !this.isCurrentlyRecording
     this.isCurrentlyRecording = true
+    this.currentMode = mode
 
     if (isNewRecording) {
       this.emitNewRecording(gen, mode, contextSource, screenThumbnailBase64)
@@ -201,6 +203,7 @@ export class RecordingStateNotifier {
     this.lastSentAppIcon = null
     this.currentCustomModeName = null
     this.currentCustomModeIcon = null
+    this.currentMode = null
     this.teardownWindowChangeListener()
     this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
       isRecording: false,
@@ -419,7 +422,19 @@ export class RecordingStateNotifier {
     }
 
     fetchFavicon(domain)
-      .then(favicon => { if (favicon) this.setFaviconCache(domain, favicon) })
+      .then(favicon => {
+        if (!favicon) return
+        this.setFaviconCache(domain, favicon)
+        if (!this.isCurrentlyRecording || this.currentMode === null) return
+        this.sendToWindows(IPC_EVENTS.RECORDING_STATE_UPDATE, {
+          isRecording: true,
+          mode: this.currentMode,
+          appTargetName: domain,
+          appTargetIconBase64: favicon,
+          customModeName: this.currentCustomModeName ?? undefined,
+          customModeIcon: this.currentCustomModeIcon ?? undefined,
+        })
+      })
       .catch(() => {})
 
     return { name: domain, iconBase64: window.iconBase64 || null }
