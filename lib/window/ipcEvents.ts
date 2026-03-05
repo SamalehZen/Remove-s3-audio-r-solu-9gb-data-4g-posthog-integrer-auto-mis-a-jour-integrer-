@@ -40,16 +40,10 @@ import {
   type MatchType,
 } from '../main/sqlite/appTargetRepo'
 import { fetchFavicon } from '../main/faviconFetcher'
-import { persistentContextDetector } from '../main/context/PersistentContextDetector'
 import {
   UserDetailsTable,
   UserAdditionalInfoTable,
 } from '../main/sqlite/userDetailsRepo'
-import {
-  getActiveWindow,
-  getActiveWindowWithIcon,
-} from '../media/active-application'
-import { getBrowserUrl } from '../media/browser-url'
 import { audioRecorderService } from '../media/audio'
 import { voiceInputService } from '../main/voiceInputService'
 import { itoSessionManager } from '../main/itoSessionManager'
@@ -217,7 +211,6 @@ export function registerIPC() {
   // Auth
   handleIPC('logout', () => {
     console.log('[DEBUG][IPC] logout called')
-    persistentContextDetector.clearCache()
     handleLogout()
   })
   handleIPC(
@@ -596,7 +589,6 @@ export function registerIPC() {
       log.error('No user ID found to delete data.')
       return false
     }
-    persistentContextDetector.clearCache()
     const { deleteCompleteUserData } = await import('../main/sqlite/db')
     return deleteCompleteUserData(userId)
   })
@@ -986,16 +978,7 @@ ipcMain.handle(
       }
     }
 
-    const target = await AppTargetTable.upsert({ ...data, userId, iconBase64 })
-
-    await persistentContextDetector.registerSignaturesForTarget(
-      target.id,
-      data.bundleId ?? null,
-      data.exePath ?? null,
-      data.domain ?? null,
-    )
-
-    return target
+    return AppTargetTable.upsert({ ...data, userId, iconBase64 })
   },
 )
 
@@ -1004,87 +987,17 @@ ipcMain.handle(
   async (_event, id: string, toneId: string | null) => {
     const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
     await AppTargetTable.updateTone(id, userId, toneId)
-    persistentContextDetector.invalidateTarget(id)
   },
 )
 
 ipcMain.handle('app-targets:delete', async (_event, id: string) => {
   const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
-  await persistentContextDetector.removeSignaturesForTarget(id)
   return AppTargetTable.delete(id, userId)
 })
 
-ipcMain.handle('app-targets:detect-current', async () => {
-  const isMac = process.platform === 'darwin'
+ipcMain.handle('app-targets:detect-current', async () => null)
 
-  if (isMac) {
-    app.hide()
-  } else if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.minimize()
-  }
-
-  await new Promise(resolve => setTimeout(resolve, 2500))
-
-  const window = await getActiveWindowWithIcon()
-  const browserInfo = await getBrowserUrl(window)
-
-  if (isMac) {
-    app.show()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.focus()
-    }
-  } else if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.restore()
-    mainWindow.show()
-    mainWindow.focus()
-  }
-
-  if (!window) return null
-
-  const appName = window.appName
-  const lowerName = appName.toLowerCase()
-  const blockedApps = [
-    'electron',
-    'ito',
-    'explorer',
-    'finder',
-    'desktop',
-    'shell',
-  ]
-  if (blockedApps.some(blocked => lowerName.includes(blocked))) {
-    return null
-  }
-
-  let domainIconBase64: string | null = null
-  if (browserInfo.domain) {
-    try {
-      domainIconBase64 = await fetchFavicon(browserInfo.domain)
-    } catch (error) {
-      console.warn('[AppTargets] Favicon pre-fetch failed:', error)
-    }
-  }
-
-  return {
-    appName,
-    browserUrl: browserInfo.url,
-    browserDomain: browserInfo.domain,
-    suggestedMatchType: browserInfo.domain ? 'domain' : 'app',
-    iconBase64: window.iconBase64 || null,
-    domainIconBase64,
-    bundleId: window.bundleId || null,
-    exePath: window.exePath || null,
-  }
-})
-
-ipcMain.handle('app-targets:get-current', async () => {
-  const window = await getActiveWindow()
-  const browserInfo = await getBrowserUrl(window)
-  const resolved = await persistentContextDetector.resolveForWindow(
-    window,
-    browserInfo.domain,
-  )
-  return resolved.target
-})
+ipcMain.handle('app-targets:get-current', async () => null)
 
 ipcMain.handle('app-targets:list-installed-apps', async () => {
   const platform = process.platform
