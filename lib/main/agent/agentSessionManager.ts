@@ -7,6 +7,9 @@ import { interactionManager } from '../interactions/InteractionManager'
 import { preventAppNap, allowAppNap } from '../appNap'
 import { getAdvancedSettings } from '../store'
 import { audioRecorderService } from '../../media/audio'
+import { customModeResolver } from '../context/CustomModeResolver'
+import { activeWindowMonitor } from '../ActiveWindowMonitor'
+import { contextGrabber } from '../context/ContextGrabber'
 import { SonioxStreamingService } from '../soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from '../soniox/SonioxTempKeyManager'
 import { setFocusedText } from '../../media/text-writer'
@@ -84,6 +87,25 @@ class AgentSessionManager {
     const startMs = Date.now()
     console.info('[AgentSession] ══════ SESSION START ══════')
     interactionManager.initialize()
+
+    try {
+      const cached = activeWindowMonitor.getCachedState()
+      if (cached?.window) {
+        const resolved = await customModeResolver.resolve({
+          domain: cached.browserInfo?.domain ?? null,
+          bundleId: cached.window.bundleId ?? null,
+          exePath: cached.window.exePath ?? null,
+          appName: cached.window.appName ?? null,
+        })
+        if (resolved) {
+          recordingStateNotifier.setCustomMode(resolved.mode.name, resolved.mode.icon)
+          contextGrabber.setCustomModePrompt(resolved.mode.promptTemplate || null)
+          console.info('[AgentSession] Auto-activated custom mode:', resolved.mode.name)
+        }
+      }
+    } catch (error) {
+      console.error('[AgentSession] Custom mode resolution failed:', error)
+    }
 
     if (!this.agent) {
       console.info('[AgentSession] No existing agent, creating new one')
