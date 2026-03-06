@@ -168,6 +168,7 @@ export class ItoSessionManager {
     recordingStateNotifier.notifyRecordingStarted(mode)
     preventAppNap()
 
+    let connectTimeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const connectWithTimeout = async () => {
         const tempKey = await sonioxTempKeyManager.getKey()
@@ -227,12 +228,12 @@ export class ItoSessionManager {
         return true
       }
 
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(
+      const timeout = new Promise<never>((_, reject) => {
+        connectTimeoutId = setTimeout(
           () => reject(new Error('Soniox connection timed out')),
           this.SONIOX_CONNECT_TIMEOUT_MS,
-        ),
-      )
+        )
+      })
 
       const connected = await Promise.race([connectWithTimeout(), timeout])
 
@@ -253,7 +254,13 @@ export class ItoSessionManager {
         )
       }
       log.error('[itoSessionManager] Failed to start Soniox session:', error)
+      if (this.sonioxAudioHandler) {
+        audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
+        this.sonioxAudioHandler = null
+      }
       this.sonioxService = null
+    } finally {
+      if (connectTimeoutId) clearTimeout(connectTimeoutId)
     }
 
     this.contextGatherPromise = this.gatherAndCacheContext(mode)
