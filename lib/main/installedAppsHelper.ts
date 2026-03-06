@@ -33,6 +33,135 @@ const NOISE_PATTERNS = [
   /getting started/i,
 ]
 
+const KNOWN_UWP_FRIENDLY_NAMES: Record<string, string> = {
+  'microsoft.windowsnotepad': 'Notepad',
+  'microsoft.notepad': 'Notepad',
+  'microsoft.windowscalculator': 'Calculator',
+  'microsoft.windowsterminal': 'Terminal',
+  'microsoft.windowsalarms': 'Alarms & Clock',
+  'microsoft.windowscamera': 'Camera',
+  'microsoft.windowsmaps': 'Maps',
+  'microsoft.windowssoundrecorder': 'Sound Recorder',
+  'microsoft.windowsfeedbackhub': 'Feedback Hub',
+  'microsoft.windowsstore': 'Microsoft Store',
+  'microsoft.zunemusic': 'Media Player',
+  'microsoft.zunevideo': 'Movies & TV',
+  'microsoft.windowsphotos': 'Photos',
+  'microsoft.windowscommunicationsapps': 'Mail & Calendar',
+  'microsoft.people': 'People',
+  'microsoft.gethelp': 'Get Help',
+  'microsoft.getstarted': 'Tips',
+  'microsoft.microsoftstickyNotes': 'Sticky Notes',
+  'microsoft.stickynotes': 'Sticky Notes',
+  'microsoft.screensketch': 'Snipping Tool',
+  'microsoft.snippingtool': 'Snipping Tool',
+  'microsoft.paint': 'Paint',
+  'microsoft.mspaint': 'Paint',
+  'microsoft.microsoftedge': 'Microsoft Edge',
+  'microsoft.microsoftedge.stable': 'Microsoft Edge',
+  'microsoft.todos': 'Microsoft To Do',
+  'microsoft.microsofttodo': 'Microsoft To Do',
+  'microsoft.office.onenote': 'OneNote',
+  'microsoft.onenote': 'OneNote',
+  'microsoft.office.word': 'Word',
+  'microsoft.office.excel': 'Excel',
+  'microsoft.office.powerpoint': 'PowerPoint',
+  'microsoft.office.outlook': 'Outlook',
+  'microsoft.outlookforwindows': 'Outlook',
+  'microsoft.office.access': 'Access',
+  'microsoft.microsoftofficeHub': 'Office',
+  'microsoft.officehub': 'Office',
+  'microsoft.microsoftoffice': 'Office',
+  'microsoft.whiteboard': 'Whiteboard',
+  'microsoft.microsoftwhiteboard': 'Whiteboard',
+  'microsoft.teams': 'Teams',
+  'microsoftteams': 'Teams',
+  'msteams': 'Teams',
+  'microsoft.bingweather': 'Weather',
+  'microsoft.bingnews': 'News',
+  'microsoft.bingsports': 'Sports',
+  'microsoft.bingfinance': 'Finance',
+  'microsoft.bingmaps': 'Maps',
+  'microsoft.bingsearch': 'Bing Search',
+  'microsoft.bingtranslator': 'Translator',
+  'microsoft.xboxapp': 'Xbox',
+  'microsoft.xbox.tcui': 'Xbox',
+  'microsoft.gamingapp': 'Xbox',
+  'microsoft.microsoftjournal': 'Journal',
+  'microsoft.clipchamp': 'Clipchamp',
+  'microsoft.heifimageextension': 'HEIF Image Extensions',
+  'microsoft.webpimageextension': 'WebP Image Extensions',
+  'microsoft.rawimageextension': 'Raw Image Extensions',
+  'microsoft.hevcimagextension': 'HEVC Video Extensions',
+  'microsoft.webmediaextensions': 'Web Media Extensions',
+  'microsoft.vp9videoextensions': 'VP9 Video Extensions',
+  'microsoft.av1videoextension': 'AV1 Video Extensions',
+  'microsoft.mpeghevcvideextension': 'HEVC Video Extensions',
+  'microsoft.powerapps': 'Power Apps',
+  'microsoft.powerbi': 'Power BI',
+  'microsoft.powerautomate': 'Power Automate',
+  'microsoft.skypeapp': 'Skype',
+  'microsoft.yourphone': 'Phone Link',
+  'microsoft.windowsphone': 'Phone Link',
+  'microsoft.accounts': 'Accounts',
+  'microsoft.mixer': 'Mixer',
+  'microsoft.mixedreality.portal': 'Mixed Reality Portal',
+  'microsoft.549981c3f5f10': 'Cortana',
+  'microsoft.cortana': 'Cortana',
+  'microsoft.msixpackagingtool': 'MSIX Packaging Tool',
+  'microsoft.devhome': 'Dev Home',
+  'microsoft.windowsdevhome': 'Dev Home',
+  'spotify.spotifymusic': 'Spotify',
+  'spotifyab.spotifymusic': 'Spotify',
+  'disney.disneyplus': 'Disney+',
+  'netflix': 'Netflix',
+  'amazon.com.amazon': 'Amazon',
+  'telegram.telegramdesktop': 'Telegram',
+  'whatsapp': 'WhatsApp',
+  '9nksqgp7f2nh': 'WhatsApp',
+  'facebook.facebook': 'Facebook',
+  'facebook.instagram': 'Instagram',
+  'twitter.twitter': 'Twitter',
+  'tiktok.tiktok': 'TikTok',
+  'zoom.zoom': 'Zoom',
+  'discord.discord': 'Discord',
+  'slack.slack': 'Slack',
+  'notion.notion': 'Notion',
+  'figma.figma': 'Figma',
+  'canva.canva': 'Canva',
+}
+
+function friendlyNameFromPackage(packageIdOrFamily: string): string | null {
+  const lower = packageIdOrFamily.toLowerCase()
+  const base = lower.split('_')[0]
+  if (KNOWN_UWP_FRIENDLY_NAMES[base]) return KNOWN_UWP_FRIENDLY_NAMES[base]
+  for (const [key, name] of Object.entries(KNOWN_UWP_FRIENDLY_NAMES)) {
+    if (base.includes(key) || key.includes(base)) return name
+  }
+  const parts = base.split('.')
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1]
+    const cleaned = lastPart
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^windows/i, '')
+      .trim()
+    if (cleaned.length > 1) return cleaned
+  }
+  return null
+}
+
+export function cleanupAppDisplayName(name: string): string {
+  if (!name) return name
+  if (name.startsWith('@{') && name.includes('}')) {
+    const inner = name.slice(2, name.indexOf('}'))
+    const friendly = friendlyNameFromPackage(inner)
+    if (friendly) return friendly
+  }
+  const friendly = friendlyNameFromPackage(name)
+  if (friendly) return friendly
+  return name
+}
+
 function isBlocked(name: string): boolean {
   const lower = name.toLowerCase()
   return (
@@ -171,14 +300,18 @@ function collectWindowsSystemApps(
       try {
         const manifestPath = path.join(dir, entry.name, 'AppxManifest.xml')
         const raw = fs.readFileSync(manifestPath, 'utf-8')
-        const displayName = parseManifestDisplayName(raw)
+        let displayName = parseManifestDisplayName(raw)
+        if (!displayName) {
+          displayName = friendlyNameFromPackage(entry.name)
+        }
         if (!displayName) continue
         const packageFamilyName = derivePackageFamilyName(entry.name)
+        const iconBase64 = extractUwpIconFromManifest(raw, path.join(dir, entry.name))
         addApp({
           name: displayName,
           exePath: null,
           bundleId: packageFamilyName,
-          iconBase64: null,
+          iconBase64,
         })
       } catch {}
     }
@@ -244,19 +377,24 @@ async function collectWindowsRegistryUwpApps(
       }
       const match = trimmed.match(/^DisplayName\s+REG_SZ\s+(.+)/)
       if (!match) continue
-      const displayName = match[1].trim()
-      if (!displayName || displayName.startsWith('ms-resource:')) continue
+      const rawDisplayName = match[1].trim()
+      if (!rawDisplayName) continue
 
       const keyParts = currentKey.split('\\')
       const packageFullName = keyParts[keyParts.length - 1] || ''
       if (UWP_NOISE.some(p => p.test(packageFullName))) continue
 
       const packageFamilyName = derivePackageFamilyName(packageFullName)
+      const friendlyName = friendlyNameFromPackage(packageFullName)
+      const displayName = rawDisplayName.startsWith('ms-resource:') ? null : rawDisplayName
+      const finalName = friendlyName || displayName
+      if (!finalName) continue
+      const iconBase64 = await tryExtractUwpIcon(packageFullName)
       addApp({
-        name: displayName,
+        name: finalName,
         exePath: null,
         bundleId: packageFamilyName,
-        iconBase64: null,
+        iconBase64,
       })
     }
   } catch (e) {
@@ -284,6 +422,79 @@ function parseManifestDisplayName(xml: string): string | null {
   const name = match[1].trim()
   if (name.startsWith('ms-resource:')) return null
   return name || null
+}
+
+function extractUwpIconFromManifest(
+  manifestXml: string,
+  packageDir: string,
+): string | null {
+  try {
+    const logoMatch = manifestXml.match(
+      /<Logo>([^<]+)<\/Logo>|<uap:VisualElements[^>]+Square44x44Logo="([^"]+)"|<uap:VisualElements[^>]+Square150x150Logo="([^"]+)"/,
+    )
+    if (!logoMatch) return null
+    const logoRelPath = (logoMatch[1] || logoMatch[2] || logoMatch[3]).trim()
+    const logoDir = path.join(packageDir, path.dirname(logoRelPath))
+    const logoBaseName = path.basename(logoRelPath, path.extname(logoRelPath))
+    const logoExt = path.extname(logoRelPath)
+    const candidates = [
+      path.join(packageDir, logoRelPath),
+      path.join(logoDir, `${logoBaseName}.scale-200${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.scale-100${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.scale-150${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.targetsize-256${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.targetsize-128${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.targetsize-64${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.targetsize-48${logoExt}`),
+      path.join(logoDir, `${logoBaseName}.targetsize-32${logoExt}`),
+    ]
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        const buf = fs.readFileSync(candidate)
+        return buf.toString('base64')
+      }
+    }
+    try {
+      if (fs.existsSync(logoDir)) {
+        const files = fs.readdirSync(logoDir)
+        const matching = files
+          .filter(f => f.toLowerCase().startsWith(logoBaseName.toLowerCase()) && /\.(png|jpg|jpeg)$/i.test(f))
+          .sort((a, b) => {
+            const sizeA = parseInt(a.match(/(?:scale|targetsize)-(\d+)/)?.[1] || '0')
+            const sizeB = parseInt(b.match(/(?:scale|targetsize)-(\d+)/)?.[1] || '0')
+            return sizeB - sizeA
+          })
+        if (matching.length > 0) {
+          const buf = fs.readFileSync(path.join(logoDir, matching[0]))
+          return buf.toString('base64')
+        }
+      }
+    } catch {}
+  } catch {}
+  return null
+}
+
+async function tryExtractUwpIcon(packageFullName: string): Promise<string | null> {
+  const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files'
+  const windowsApps = path.join(programFiles, 'WindowsApps')
+  const systemApps = path.join(process.env.WINDIR || 'C:\\Windows', 'SystemApps')
+  for (const baseDir of [windowsApps, systemApps]) {
+    try {
+      const entries = fs.readdirSync(baseDir)
+      const match = entries.find(e => {
+        const eLower = e.toLowerCase()
+        const pkgLower = packageFullName.toLowerCase()
+        return eLower === pkgLower || eLower.startsWith(pkgLower.split('_')[0] + '_')
+      })
+      if (!match) continue
+      const manifestPath = path.join(baseDir, match, 'AppxManifest.xml')
+      if (!fs.existsSync(manifestPath)) continue
+      const xml = fs.readFileSync(manifestPath, 'utf-8')
+      const icon = extractUwpIconFromManifest(xml, path.join(baseDir, match))
+      if (icon) return icon
+    } catch {}
+  }
+  return null
 }
 
 function findLnkFilesRecursive(dir: string): string[] {
