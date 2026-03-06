@@ -4,6 +4,7 @@ import os from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs/promises'
+import * as fsSync from 'fs'
 import path from 'path'
 import store, { getCurrentUserId } from '../main/store'
 import { STORE_KEYS } from '../constants/store-keys'
@@ -1005,7 +1006,7 @@ ipcMain.handle('app-targets:list-installed-apps', async () => {
   try {
     if (platform === 'darwin') {
       const { stdout } = await execAsync(
-        `{ ls -1 /Applications/ 2>/dev/null; ls -1 ~/Applications/ 2>/dev/null; ls -1 /System/Applications/ 2>/dev/null; } | grep '\\.app$' | sed 's/\\.app$//' | sort -u`,
+        `{ ls -1 /Applications/ 2>/dev/null; ls -1 ~/Applications/ 2>/dev/null; ls -1 /System/Applications/ 2>/dev/null; ls -1 /System/Applications/Utilities/ 2>/dev/null; } | grep '\\.app$' | sed 's/\\.app$//' | sort -u`,
         { timeout: 2000 },
       )
       return stdout
@@ -1019,11 +1020,8 @@ ipcMain.handle('app-targets:list-installed-apps', async () => {
     }
 
     if (platform === 'win32') {
-      const registryPaths = [
-        'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
-        'HKLM\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
-        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
-      ]
+      const results = new Set<string>()
+      const blocked = ['electron', 'ito']
 
       const NOISE_PATTERNS = [
         /microsoft \.net/i,
@@ -1049,7 +1047,11 @@ ipcMain.handle('app-targets:list-installed-apps', async () => {
         /^microsoft onedrive/i,
       ]
 
-      const results: string[] = []
+      const registryPaths = [
+        'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+        'HKLM\\Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+      ]
 
       for (const regPath of registryPaths) {
         try {
@@ -1063,29 +1065,84 @@ ipcMain.handle('app-targets:list-installed-apps', async () => {
             if (match) {
               const name = match[1].trim()
               if (name && !NOISE_PATTERNS.some(p => p.test(name))) {
-                results.push(name)
+                results.add(name)
               }
             }
           }
-        } catch {
-          // Registry path may not exist, skip
-        }
+        } catch {}
       }
 
-      return [...new Set(results)]
+      try {
+        const uwpRegPath =
+          'HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages'
+        const { stdout } = await execAsync(
+          `reg query "${uwpRegPath}" /s /v DisplayName`,
+          { timeout: 5000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 },
+        )
+        for (const line of stdout.split('\n')) {
+          const match = line.trim().match(/^DisplayName\s+REG_SZ\s+(.+)/)
+          if (!match) continue
+          const name = match[1].trim()
+          if (name && !name.startsWith('ms-resource:')) results.add(name)
+        }
+      } catch {}
+
+      const systemAppsDir = path.join(
+        process.env.WINDIR || 'C:\\Windows',
+        'SystemApps',
+      )
+      try {
+        const entries = fsSync.readdirSync(systemAppsDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue
+          try {
+            const manifest = fsSync.readFileSync(
+              path.join(systemAppsDir, entry.name, 'AppxManifest.xml'),
+              'utf-8',
+            )
+            const nameMatch = manifest.match(
+              /<DisplayName>([^<]+)<\/DisplayName>/,
+            )
+            if (
+              nameMatch &&
+              nameMatch[1] &&
+              !nameMatch[1].startsWith('ms-resource:')
+            ) {
+              results.add(nameMatch[1].trim())
+            }
+          } catch {}
+        }
+      } catch {}
+
+      return [...results]
         .sort((a, b) => a.localeCompare(b))
         .filter(name => {
           const lower = name.toLowerCase()
-          return !['electron', 'ito'].some(b => lower.includes(b))
+          return !blocked.some(b => lower.includes(b))
         })
     }
 
     if (platform === 'linux') {
-      const { stdout } = await execAsync(
-        `grep -rh '^Name=' /usr/share/applications/*.desktop 2>/dev/null | sed 's/^Name=//' | sort -u`,
-        { timeout: 2000 },
-      )
-      return stdout.trim().split('\n').filter(Boolean)
+      const dirs = [
+        '/usr/share/applications',
+        '/usr/local/share/applications',
+        `${os.homedir()}/.local/share/applications`,
+        '/var/lib/flatpak/exports/share/applications',
+        '/var/lib/snapd/desktop/applications',
+      ]
+      const names = new Set<string>()
+      for (const dir of dirs) {
+        try {
+          const { stdout } = await execAsync(
+            `grep -rh '^Name=' ${dir}/*.desktop 2>/dev/null | sed 's/^Name=//'`,
+            { timeout: 2000 },
+          )
+          for (const n of stdout.trim().split('\n').filter(Boolean)) {
+            names.add(n)
+          }
+        } catch {}
+      }
+      return [...names].sort()
     }
 
     return []

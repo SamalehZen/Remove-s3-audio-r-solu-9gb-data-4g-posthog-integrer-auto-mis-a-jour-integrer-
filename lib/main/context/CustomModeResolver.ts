@@ -80,6 +80,20 @@ class CustomModeResolver {
         ) ?? null
     }
 
+    if (!matchedRule && context.exePath) {
+      const lowerExePath = context.exePath.toLowerCase()
+      matchedRule =
+        rules.find(r => {
+          if (r.ruleType !== 'app') return false
+          const lowerValue = r.value.toLowerCase()
+          if (lowerExePath.includes(lowerValue)) return true
+          const prefix = lowerValue.split('_')[0]
+          if (prefix && prefix.includes('.') && lowerExePath.includes(prefix))
+            return true
+          return false
+        }) ?? null
+    }
+
     if (!matchedRule && context.appName) {
       const lowerAppName = context.appName.toLowerCase()
       matchedRule =
@@ -88,15 +102,28 @@ class CustomModeResolver {
         ) ?? null
     }
 
-    if (!matchedRule && context.appName) {
+    if (!matchedRule && context.appName && context.appName.length >= 3) {
       const lowerAppName = context.appName.toLowerCase()
       matchedRule =
         rules.find(
           r =>
             r.ruleType === 'app' &&
-            (r.value.toLowerCase().includes(lowerAppName) ||
-              lowerAppName.includes(r.value.toLowerCase())),
+            r.value.toLowerCase().includes(lowerAppName),
         ) ?? null
+    }
+
+    if (!matchedRule && context.appName) {
+      const lowerAppName = context.appName.toLowerCase()
+      matchedRule =
+        rules.find(r => {
+          if (r.ruleType !== 'app') return false
+          const lowerValue = r.value.toLowerCase()
+          const ruleAppName = r.appName?.toLowerCase()
+          if (ruleAppName && ruleAppName === lowerAppName) return true
+          if (ruleAppName && lowerAppName.includes(ruleAppName)) return true
+          if (ruleAppName && ruleAppName.includes(lowerAppName)) return true
+          return lowerAppName.includes(lowerValue)
+        }) ?? null
     }
 
     if (!matchedRule) return null
