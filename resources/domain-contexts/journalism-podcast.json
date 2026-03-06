@@ -1,0 +1,186 @@
+{
+  "slug": "journalism-podcast",
+  "name": "Journalism / Podcast",
+  "name_fr": "Journalisme / Podcast",
+  "icon": "Microphone",
+  "description": "Interviews, editorial meetings, story pitching, podcast recording, fact-checking, content production",
+  "description_fr": "Entrevues, réunions éditoriales, pitch d'articles, enregistrement de podcasts, vérification des faits, production de contenu",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Journalism & Podcast / Journalisme & Podcast"
+      },
+      {
+        "key": "publication",
+        "value": "Newspaper, magazine, online media, podcast network, broadcast station"
+      },
+      {
+        "key": "topic",
+        "value": "News, politics, technology, culture, business, investigative journalism"
+      },
+      {
+        "key": "format",
+        "value": "Interview, editorial, investigative report, podcast episode, live broadcast"
+      },
+      {
+        "key": "audience",
+        "value": "General public, industry professionals, niche communities"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English media and broadcasting terminology"
+      }
+    ],
+    "text": "Welcome back to episode forty-seven of the podcast. Today we have a special guest joining us to discuss the intersection of artificial intelligence and investigative journalism. The cold open features a sound bite from last week's press conference. Our producer spent three days editing the B-roll footage and voice-over segments to create a compelling narrative arc. Le rédacteur en chef a convoqué une réunion éditoriale d'urgence suite aux révélations de notre enquête sur les pratiques de lobbying dans l'industrie pharmaceutique. L'article sera publié en exclusivité dans l'édition du dimanche, avec un embargo de quarante-huit heures. Notre journaliste d'investigation a recoupé les informations auprès de trois sources indépendantes et a obtenu des documents confidentiels qui corroborent les allégations. The podcast team invested in new condenser microphones with XLR connections and upgraded the digital audio workstation to Pro Tools. The audio engineer recommended adjusting the gain staging to reduce floor noise. Pour la saison prochaine du balado, on prévoit un format hybride avec des épisodes en studio et des reportages sur le terrain. Le plan éditorial couvre douze épisodes thématiques, chacun accompagné d'un article long format. La syndication via les flux RSS sera étendue à trois nouvelles plateformes de distribution. The investigative team collaborated with a data journalist to analyze public procurement records, using Python scripts to cross-reference thousands of documents. The editor assigned a photographer and a videographer to produce multimedia content for the web edition. L'équipe technique du studio d'enregistrement a effectué le traitement audio de l'épisode pilote, incluant la réduction de bruit, l'égalisation des voix et le mastering final. Le producteur a établi un calendrier éditorial trimestriel avec des thématiques variées couvrant la politique internationale, l'économie numérique et les enjeux environnementaux. Pour la monétisation, l'équipe commerciale négocie des partenariats de sponsoring avec trois annonceurs principaux et explore un modèle d'abonnement premium offrant du contenu exclusif et des épisodes sans publicité.",
+    "terms": [
+      "attribution",
+      "Audacity",
+      "audiogram",
+      "auditoire",
+      "B-roll",
+      "balado",
+      "breaking news",
+      "byline",
+      "circulation",
+      "cold open",
+      "compression",
+      "condenser microphone",
+      "conférence de presse",
+      "correction",
+      "corroboration",
+      "DAW",
+      "deep background",
+      "diffusion",
+      "dynamic microphone",
+      "éditorial",
+      "editorial",
+      "embargo",
+      "enquête",
+      "entrevue",
+      "episode",
+      "épisode",
+      "equalization",
+      "exclusive",
+      "fact-check",
+      "gain staging",
+      "GarageBand",
+      "intro",
+      "journaliste",
+      "masthead",
+      "news desk",
+      "noise gate",
+      "off the record",
+      "on background",
+      "op-ed",
+      "outro",
+      "phantom power",
+      "podcast",
+      "pop filter",
+      "présentateur",
+      "Pro Tools",
+      "rédacteur en chef",
+      "retraction",
+      "room tone",
+      "RSS feed",
+      "salle de rédaction",
+      "season",
+      "segment",
+      "show notes",
+      "sound bite",
+      "source",
+      "syndication",
+      "teaser",
+      "teleprompter",
+      "tirage",
+      "transcript",
+      "transcription",
+      "voice-over",
+      "waveform",
+      "whistleblower",
+      "XLR"
+    ],
+    "translation_terms": [
+      {
+        "source": "breaking news",
+        "target": "nouvelles de dernière heure"
+      },
+      {
+        "source": "headline",
+        "target": "titre"
+      },
+      {
+        "source": "editorial",
+        "target": "éditorial"
+      },
+      {
+        "source": "journalist",
+        "target": "journaliste"
+      },
+      {
+        "source": "interview",
+        "target": "entrevue"
+      },
+      {
+        "source": "source",
+        "target": "source"
+      },
+      {
+        "source": "article",
+        "target": "article"
+      },
+      {
+        "source": "broadcast",
+        "target": "diffusion"
+      },
+      {
+        "source": "reporter",
+        "target": "reporter"
+      },
+      {
+        "source": "anchor",
+        "target": "présentateur"
+      },
+      {
+        "source": "deadline",
+        "target": "date de tombée"
+      },
+      {
+        "source": "press conference",
+        "target": "conférence de presse"
+      },
+      {
+        "source": "investigation",
+        "target": "enquête"
+      },
+      {
+        "source": "podcast",
+        "target": "balado"
+      },
+      {
+        "source": "episode",
+        "target": "épisode"
+      },
+      {
+        "source": "transcript",
+        "target": "transcription"
+      },
+      {
+        "source": "audience",
+        "target": "auditoire"
+      },
+      {
+        "source": "circulation",
+        "target": "tirage"
+      },
+      {
+        "source": "editor",
+        "target": "rédacteur en chef"
+      },
+      {
+        "source": "newsroom",
+        "target": "salle de rédaction"
+      }
+    ]
+  }
+}

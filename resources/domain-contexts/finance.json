@@ -1,0 +1,200 @@
+{
+  "slug": "finance",
+  "name": "Finance",
+  "name_fr": "Finance",
+  "icon": "Bank",
+  "description": "Financial analysis, portfolio management, trading discussions, audit reviews, tax planning, investment strategy",
+  "description_fr": "Analyse financière, gestion de portefeuille, discussions de trading, revues d'audit, planification fiscale, stratégie d'investissement",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Finance / Finance"
+      },
+      {
+        "key": "sector",
+        "value": "Banking, asset management, insurance, private equity, fintech"
+      },
+      {
+        "key": "instrument",
+        "value": "Equities, fixed income, derivatives, ETFs, mutual funds, alternatives"
+      },
+      {
+        "key": "regulation",
+        "value": "GAAP, IFRS, SEC, AMF, Basel III, MiFID II, Sarbanes-Oxley"
+      },
+      {
+        "key": "participants",
+        "value": "Portfolio managers, analysts, auditors, CFOs, traders, compliance officers"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English financial terminology"
+      }
+    ],
+    "text": "The portfolio manager presented the quarterly performance review to the investment committee. The equity sleeve returned eight point seven percent, outperforming the benchmark by one hundred and twenty basis points. The fixed income allocation underperformed due to the rising yield curve environment. The Sharpe ratio for the overall portfolio stands at one point three five. L'analyste financier a présenté sa recommandation d'achat avec un objectif de cours de cent quarante-cinq euros, basé sur un modèle d'actualisation des flux de trésorerie. Le coût moyen pondéré du capital a été estimé à huit virgule deux pour cent. Le ratio cours sur bénéfice prévisionnel se situe en dessous de la moyenne sectorielle, suggérant une sous-évaluation par le marché. The audit team completed the year-end review of the consolidated financial statements. Material findings include a reclassification from accounts receivable to allowance for doubtful accounts, and an adjustment to the depreciation schedule. Le directeur financier a présenté le budget prévisionnel pour l'exercice fiscal prochain. Le chiffre d'affaires est projeté en hausse de dix-huit pour cent. La marge d'EBITDA devrait s'améliorer grâce aux économies d'échelle. Le plan d'investissement prévoit une levée de fonds de cinquante millions d'euros, répartie entre une augmentation de capital et une émission obligataire. The compliance officer reviewed the quarterly anti-money laundering report and flagged two suspicious transaction patterns requiring further investigation. The risk management team updated the Value at Risk model to incorporate the latest market volatility data. L'analyste crédit a présenté son évaluation du risque de contrepartie pour les nouvelles lignes de financement. Le comité d'investissement a débattu de l'opportunité de réduire l'exposition aux marchés émergents compte tenu de la volatilité des devises. Le gestionnaire de patrimoine a préparé une recommandation d'allocation d'actifs diversifiée pour les clients institutionnels, intégrant des produits structurés et des investissements en infrastructure durable.",
+    "terms": [
+      "accounts payable",
+      "accounts receivable",
+      "accrual",
+      "actif",
+      "action",
+      "alpha",
+      "amortissement",
+      "amortization",
+      "asset allocation",
+      "AUM",
+      "balance sheet",
+      "basis point",
+      "bénéfice",
+      "beta",
+      "bilan",
+      "budget",
+      "cap rate",
+      "capitaux propres",
+      "cash flow",
+      "chiffre d'affaires",
+      "collateral",
+      "couverture",
+      "DCF",
+      "depreciation",
+      "derivative",
+      "dette",
+      "diversification",
+      "dividende",
+      "EBITDA",
+      "equity",
+      "ETF",
+      "fixed income",
+      "flux de trésorerie",
+      "futures",
+      "GAAP",
+      "hedge fund",
+      "hypothèque",
+      "IFRS",
+      "impôt",
+      "income statement",
+      "index fund",
+      "investissement",
+      "IPO",
+      "LBO",
+      "liquidité",
+      "M&A",
+      "margin call",
+      "mark-to-market",
+      "municipal bond",
+      "mutual fund",
+      "NAV",
+      "NOI",
+      "obligation",
+      "options",
+      "passif",
+      "perte",
+      "portefeuille",
+      "portfolio rebalancing",
+      "prévision",
+      "rendement",
+      "securitization",
+      "Sharpe ratio",
+      "short selling",
+      "spread",
+      "swaps",
+      "taux d'intérêt",
+      "taux de change",
+      "terminal value",
+      "titrisation",
+      "VaR",
+      "volatilité",
+      "volatility",
+      "WACC",
+      "working capital",
+      "yield curve"
+    ],
+    "translation_terms": [
+      {
+        "source": "stock",
+        "target": "action"
+      },
+      {
+        "source": "bond",
+        "target": "obligation"
+      },
+      {
+        "source": "investment",
+        "target": "investissement"
+      },
+      {
+        "source": "portfolio",
+        "target": "portefeuille"
+      },
+      {
+        "source": "dividend",
+        "target": "dividende"
+      },
+      {
+        "source": "interest rate",
+        "target": "taux d'intérêt"
+      },
+      {
+        "source": "exchange rate",
+        "target": "taux de change"
+      },
+      {
+        "source": "inflation",
+        "target": "inflation"
+      },
+      {
+        "source": "revenue",
+        "target": "chiffre d'affaires"
+      },
+      {
+        "source": "profit",
+        "target": "bénéfice"
+      },
+      {
+        "source": "loss",
+        "target": "perte"
+      },
+      {
+        "source": "tax",
+        "target": "impôt"
+      },
+      {
+        "source": "audit",
+        "target": "audit"
+      },
+      {
+        "source": "budget",
+        "target": "budget"
+      },
+      {
+        "source": "forecast",
+        "target": "prévision"
+      },
+      {
+        "source": "asset",
+        "target": "actif"
+      },
+      {
+        "source": "liability",
+        "target": "passif"
+      },
+      {
+        "source": "equity",
+        "target": "capitaux propres"
+      },
+      {
+        "source": "debt",
+        "target": "dette"
+      },
+      {
+        "source": "mortgage",
+        "target": "hypothèque"
+      },
+      {
+        "source": "cash flow",
+        "target": "flux de trésorerie"
+      }
+    ]
+  }
+}
