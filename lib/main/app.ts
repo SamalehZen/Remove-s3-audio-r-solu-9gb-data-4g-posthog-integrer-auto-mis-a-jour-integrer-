@@ -111,9 +111,10 @@ export function createPillWindow(): void {
   pillWindow = new BrowserWindow({
     width: PILL_MAX_WIDTH,
     height: PILL_MAX_HEIGHT,
-    show: true,
+    show: false,
     frame: false,
     transparent: true,
+    backgroundColor: '#00000000',
     alwaysOnTop: true, // Keep on top
     skipTaskbar: true,
     resizable: false,
@@ -142,6 +143,10 @@ export function createPillWindow(): void {
       skipTransformProcessType: true,
     })
   }
+
+  pillWindow.once('ready-to-show', () => {
+    pillWindow?.showInactive()
+  })
 
   // Use a URL hash to tell our React app to load the pill component.
   const pillUrl =

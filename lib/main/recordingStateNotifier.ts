@@ -11,6 +11,7 @@ import { getBrowserUrl } from '../media/browser-url'
 import { fetchFavicon } from './faviconFetcher'
 import { faviconCache } from './faviconCache'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
+import { cleanupAppDisplayName } from '../utils/uwpAppNames'
 
 const DETECTION_TIMEOUT_MS = 800
 const BROWSER_URL_TIMEOUT_MS = 500
@@ -158,7 +159,7 @@ export class RecordingStateNotifier {
           }
 
           immediateTarget = {
-            name: cached.window.appName,
+            name: cleanupAppDisplayName(cached.window.appName),
             iconBase64: immediateIcon,
             websiteDomain: null,
           }
@@ -447,7 +448,7 @@ export class RecordingStateNotifier {
     }
 
     return {
-      name: window.appName,
+      name: cleanupAppDisplayName(window.appName),
       iconBase64: window.iconBase64 || null,
       websiteDomain: null,
     }
