@@ -6,6 +6,7 @@ import {
 } from '@/app/store/useCustomModesStore'
 import { Plus, X, Search, Globe } from '@mynaui/icons-react'
 import AppWindowIcon from '@/app/components/icons/AppWindowIcon'
+import { cleanupAppDisplayName } from '@/lib/utils/uwpAppNames'
 import {
   Dialog,
   DialogContent,
@@ -122,7 +123,7 @@ export function ModeActivationRules({ mode }: Props) {
                     <img
                       src={`data:image/png;base64,${rule.iconBase64}`}
                       className="w-10 h-10 rounded"
-                      alt={rule.appName || rule.value}
+                      alt={cleanupAppDisplayName(rule.appName || rule.value)}
                     />
                   ) : (
                     <AppWindowIcon className="w-6 h-6 text-[var(--color-subtext)]" />
@@ -136,7 +137,7 @@ export function ModeActivationRules({ mode }: Props) {
                 </button>
               </div>
               <span className="text-[10px] text-[var(--color-subtext)] truncate w-full text-center">
-                {rule.appName || rule.value}
+                {cleanupAppDisplayName(rule.appName || rule.value)}
               </span>
             </div>
           </div>

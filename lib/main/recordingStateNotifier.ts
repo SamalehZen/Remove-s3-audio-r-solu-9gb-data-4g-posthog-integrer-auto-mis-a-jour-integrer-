@@ -11,7 +11,7 @@ import { getBrowserUrl } from '../media/browser-url'
 import { fetchFavicon } from './faviconFetcher'
 import { faviconCache } from './faviconCache'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
-import { cleanupAppDisplayName } from './installedAppsHelper'
+import { cleanupAppDisplayName } from '../utils/uwpAppNames'
 
 const DETECTION_TIMEOUT_MS = 800
 const BROWSER_URL_TIMEOUT_MS = 500

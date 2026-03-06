@@ -3,6 +3,9 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { friendlyNameFromPackage } from '../utils/uwpAppNames'
+
+export { cleanupAppDisplayName } from '../utils/uwpAppNames'
 
 const execFileAsync = promisify(execFile)
 
@@ -32,135 +35,6 @@ const NOISE_PATTERNS = [
   /what's new/i,
   /getting started/i,
 ]
-
-const KNOWN_UWP_FRIENDLY_NAMES: Record<string, string> = {
-  'microsoft.windowsnotepad': 'Notepad',
-  'microsoft.notepad': 'Notepad',
-  'microsoft.windowscalculator': 'Calculator',
-  'microsoft.windowsterminal': 'Terminal',
-  'microsoft.windowsalarms': 'Alarms & Clock',
-  'microsoft.windowscamera': 'Camera',
-  'microsoft.windowsmaps': 'Maps',
-  'microsoft.windowssoundrecorder': 'Sound Recorder',
-  'microsoft.windowsfeedbackhub': 'Feedback Hub',
-  'microsoft.windowsstore': 'Microsoft Store',
-  'microsoft.zunemusic': 'Media Player',
-  'microsoft.zunevideo': 'Movies & TV',
-  'microsoft.windowsphotos': 'Photos',
-  'microsoft.windowscommunicationsapps': 'Mail & Calendar',
-  'microsoft.people': 'People',
-  'microsoft.gethelp': 'Get Help',
-  'microsoft.getstarted': 'Tips',
-  'microsoft.microsoftstickyNotes': 'Sticky Notes',
-  'microsoft.stickynotes': 'Sticky Notes',
-  'microsoft.screensketch': 'Snipping Tool',
-  'microsoft.snippingtool': 'Snipping Tool',
-  'microsoft.paint': 'Paint',
-  'microsoft.mspaint': 'Paint',
-  'microsoft.microsoftedge': 'Microsoft Edge',
-  'microsoft.microsoftedge.stable': 'Microsoft Edge',
-  'microsoft.todos': 'Microsoft To Do',
-  'microsoft.microsofttodo': 'Microsoft To Do',
-  'microsoft.office.onenote': 'OneNote',
-  'microsoft.onenote': 'OneNote',
-  'microsoft.office.word': 'Word',
-  'microsoft.office.excel': 'Excel',
-  'microsoft.office.powerpoint': 'PowerPoint',
-  'microsoft.office.outlook': 'Outlook',
-  'microsoft.outlookforwindows': 'Outlook',
-  'microsoft.office.access': 'Access',
-  'microsoft.microsoftofficeHub': 'Office',
-  'microsoft.officehub': 'Office',
-  'microsoft.microsoftoffice': 'Office',
-  'microsoft.whiteboard': 'Whiteboard',
-  'microsoft.microsoftwhiteboard': 'Whiteboard',
-  'microsoft.teams': 'Teams',
-  'microsoftteams': 'Teams',
-  'msteams': 'Teams',
-  'microsoft.bingweather': 'Weather',
-  'microsoft.bingnews': 'News',
-  'microsoft.bingsports': 'Sports',
-  'microsoft.bingfinance': 'Finance',
-  'microsoft.bingmaps': 'Maps',
-  'microsoft.bingsearch': 'Bing Search',
-  'microsoft.bingtranslator': 'Translator',
-  'microsoft.xboxapp': 'Xbox',
-  'microsoft.xbox.tcui': 'Xbox',
-  'microsoft.gamingapp': 'Xbox',
-  'microsoft.microsoftjournal': 'Journal',
-  'microsoft.clipchamp': 'Clipchamp',
-  'microsoft.heifimageextension': 'HEIF Image Extensions',
-  'microsoft.webpimageextension': 'WebP Image Extensions',
-  'microsoft.rawimageextension': 'Raw Image Extensions',
-  'microsoft.hevcimagextension': 'HEVC Video Extensions',
-  'microsoft.webmediaextensions': 'Web Media Extensions',
-  'microsoft.vp9videoextensions': 'VP9 Video Extensions',
-  'microsoft.av1videoextension': 'AV1 Video Extensions',
-  'microsoft.mpeghevcvideextension': 'HEVC Video Extensions',
-  'microsoft.powerapps': 'Power Apps',
-  'microsoft.powerbi': 'Power BI',
-  'microsoft.powerautomate': 'Power Automate',
-  'microsoft.skypeapp': 'Skype',
-  'microsoft.yourphone': 'Phone Link',
-  'microsoft.windowsphone': 'Phone Link',
-  'microsoft.accounts': 'Accounts',
-  'microsoft.mixer': 'Mixer',
-  'microsoft.mixedreality.portal': 'Mixed Reality Portal',
-  'microsoft.549981c3f5f10': 'Cortana',
-  'microsoft.cortana': 'Cortana',
-  'microsoft.msixpackagingtool': 'MSIX Packaging Tool',
-  'microsoft.devhome': 'Dev Home',
-  'microsoft.windowsdevhome': 'Dev Home',
-  'spotify.spotifymusic': 'Spotify',
-  'spotifyab.spotifymusic': 'Spotify',
-  'disney.disneyplus': 'Disney+',
-  'netflix': 'Netflix',
-  'amazon.com.amazon': 'Amazon',
-  'telegram.telegramdesktop': 'Telegram',
-  'whatsapp': 'WhatsApp',
-  '9nksqgp7f2nh': 'WhatsApp',
-  'facebook.facebook': 'Facebook',
-  'facebook.instagram': 'Instagram',
-  'twitter.twitter': 'Twitter',
-  'tiktok.tiktok': 'TikTok',
-  'zoom.zoom': 'Zoom',
-  'discord.discord': 'Discord',
-  'slack.slack': 'Slack',
-  'notion.notion': 'Notion',
-  'figma.figma': 'Figma',
-  'canva.canva': 'Canva',
-}
-
-function friendlyNameFromPackage(packageIdOrFamily: string): string | null {
-  const lower = packageIdOrFamily.toLowerCase()
-  const base = lower.split('_')[0]
-  if (KNOWN_UWP_FRIENDLY_NAMES[base]) return KNOWN_UWP_FRIENDLY_NAMES[base]
-  for (const [key, name] of Object.entries(KNOWN_UWP_FRIENDLY_NAMES)) {
-    if (base.includes(key) || key.includes(base)) return name
-  }
-  const parts = base.split('.')
-  if (parts.length >= 2) {
-    const lastPart = parts[parts.length - 1]
-    const cleaned = lastPart
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/^windows/i, '')
-      .trim()
-    if (cleaned.length > 1) return cleaned
-  }
-  return null
-}
-
-export function cleanupAppDisplayName(name: string): string {
-  if (!name) return name
-  if (name.startsWith('@{') && name.includes('}')) {
-    const inner = name.slice(2, name.indexOf('}'))
-    const friendly = friendlyNameFromPackage(inner)
-    if (friendly) return friendly
-  }
-  const friendly = friendlyNameFromPackage(name)
-  if (friendly) return friendly
-  return name
-}
 
 function isBlocked(name: string): boolean {
   const lower = name.toLowerCase()
@@ -434,6 +308,7 @@ function extractUwpIconFromManifest(
     )
     if (!logoMatch) return null
     const logoRelPath = (logoMatch[1] || logoMatch[2] || logoMatch[3]).trim()
+    if (logoRelPath.startsWith('ms-resource:')) return null
     const logoDir = path.join(packageDir, path.dirname(logoRelPath))
     const logoBaseName = path.basename(logoRelPath, path.extname(logoRelPath))
     const logoExt = path.extname(logoRelPath)
@@ -474,26 +349,67 @@ function extractUwpIconFromManifest(
   return null
 }
 
+const _dirListCache = new Map<string, string[]>()
+
+function cachedReaddirSync(dir: string): string[] {
+  const cached = _dirListCache.get(dir)
+  if (cached) return cached
+  try {
+    const entries = fs.readdirSync(dir)
+    _dirListCache.set(dir, entries)
+    return entries
+  } catch {
+    _dirListCache.set(dir, [])
+    return []
+  }
+}
+
 async function tryExtractUwpIcon(packageFullName: string): Promise<string | null> {
   const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files'
   const windowsApps = path.join(programFiles, 'WindowsApps')
   const systemApps = path.join(process.env.WINDIR || 'C:\\Windows', 'SystemApps')
-  for (const baseDir of [windowsApps, systemApps]) {
+  const localAppData = process.env['LOCALAPPDATA'] || ''
+  const localPackages = localAppData ? path.join(localAppData, 'Packages') : ''
+  const baseName = packageFullName.toLowerCase().split('_')[0]
+
+  for (const baseDir of [systemApps, windowsApps]) {
     try {
-      const entries = fs.readdirSync(baseDir)
-      const match = entries.find(e => {
+      const entries = cachedReaddirSync(baseDir)
+      const matched = entries.find(e => {
         const eLower = e.toLowerCase()
-        const pkgLower = packageFullName.toLowerCase()
-        return eLower === pkgLower || eLower.startsWith(pkgLower.split('_')[0] + '_')
+        return eLower === packageFullName.toLowerCase() || eLower.startsWith(baseName + '_')
       })
-      if (!match) continue
-      const manifestPath = path.join(baseDir, match, 'AppxManifest.xml')
+      if (!matched) continue
+      const manifestPath = path.join(baseDir, matched, 'AppxManifest.xml')
       if (!fs.existsSync(manifestPath)) continue
       const xml = fs.readFileSync(manifestPath, 'utf-8')
-      const icon = extractUwpIconFromManifest(xml, path.join(baseDir, match))
+      const icon = extractUwpIconFromManifest(xml, path.join(baseDir, matched))
       if (icon) return icon
     } catch {}
   }
+
+  if (localPackages) {
+    try {
+      const entries = cachedReaddirSync(localPackages)
+      const matched = entries.find(e => e.toLowerCase().startsWith(baseName + '_'))
+      if (matched) {
+        const pkgDir = path.join(localPackages, matched)
+        const localStatePath = path.join(pkgDir, 'LocalState')
+        const acDir = path.join(pkgDir, 'AC')
+        for (const subDir of [pkgDir, localStatePath, acDir]) {
+          try {
+            const manifestPath = path.join(subDir, 'AppxManifest.xml')
+            if (fs.existsSync(manifestPath)) {
+              const xml = fs.readFileSync(manifestPath, 'utf-8')
+              const icon = extractUwpIconFromManifest(xml, subDir)
+              if (icon) return icon
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
   return null
 }
 
