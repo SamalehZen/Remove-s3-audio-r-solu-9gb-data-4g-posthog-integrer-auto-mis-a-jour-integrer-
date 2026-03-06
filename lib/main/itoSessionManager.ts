@@ -6,13 +6,14 @@ import { TextInserter } from './text/TextInserter'
 import { interactionManager } from './interactions/InteractionManager'
 import { contextGrabber, ContextData } from './context/ContextGrabber'
 import { GrammarRulesService } from './grammar/GrammarRulesService'
-import { getAdvancedSettings, store } from './store'
+import { getAdvancedSettings, getCurrentUserId, store } from './store'
 import log from 'electron-log'
 import { preventAppNap, allowAppNap } from './appNap'
 import { timingCollector, TimingEventName } from './timing/TimingCollector'
 import {
   SonioxStreamingService,
   SonioxTranslationConfig,
+  type SonioxContextConfig,
 } from './soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
 import { audioRecorderService } from '../media/audio'
@@ -22,6 +23,8 @@ import { STORE_KEYS } from '../constants/store-keys'
 import { customModeResolver } from './context/CustomModeResolver'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
+import { domainContextProvider } from './context/DomainContextProvider'
+import { UserDetailsTable } from './sqlite/userDetailsRepo'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
@@ -168,6 +171,8 @@ export class ItoSessionManager {
     recordingStateNotifier.notifyRecordingStarted(mode)
     preventAppNap()
 
+    const contextPromise = this.gatherSonioxContext(mode)
+
     let connectTimeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const connectWithTimeout = async () => {
@@ -180,6 +185,10 @@ export class ItoSessionManager {
           return false
         }
 
+        const userId = getCurrentUserId() || 'local-user'
+        const userDetails = await UserDetailsTable.findByUserId(userId)
+        const hasDomainContext = !!userDetails?.domain_context_slug
+
         const preWarmed = this.preWarmedSonioxService
         this.preWarmedSonioxService = null
 
@@ -188,7 +197,8 @@ export class ItoSessionManager {
           preWarmed.isCurrentlyActive() &&
           !preWarmed.hasEncounteredError() &&
           Date.now() - this.preWarmTimestamp < this.PRE_WARM_TTL_MS &&
-          mode === ItoMode.TRANSCRIBE
+          mode === ItoMode.TRANSCRIBE &&
+          !hasDomainContext
         ) {
           this.sonioxService = preWarmed
           this.sonioxService.on('error', (error: Error) => {
@@ -205,6 +215,22 @@ export class ItoSessionManager {
           if (preWarmed) {
             preWarmed.cancel()
           }
+
+          let sonioxContext: SonioxContextConfig | null = null
+          try {
+            sonioxContext = await Promise.race([
+              contextPromise,
+              new Promise<null>(resolve =>
+                setTimeout(() => resolve(null), 500),
+              ),
+            ])
+          } catch (error) {
+            console.warn(
+              '[itoSessionManager] Context gathering failed:',
+              error,
+            )
+          }
+
           this.sonioxService = new SonioxStreamingService()
           this.sonioxService.on('error', (error: Error) => {
             console.error(
@@ -213,7 +239,13 @@ export class ItoSessionManager {
             )
             this.handleSonioxStreamError(error)
           })
-          await this.sonioxService.start(tempKey, this.getTranslationConfig())
+          await this.sonioxService.start(
+            tempKey,
+            this.getTranslationConfig(),
+            {
+              context: sonioxContext || undefined,
+            },
+          )
         }
 
         if (generation !== this.sonioxSessionGeneration) {
@@ -273,6 +305,22 @@ export class ItoSessionManager {
 
     timingCollector.startInteraction()
     timingCollector.startTiming(TimingEventName.INTERACTION_ACTIVE)
+  }
+
+  private async gatherSonioxContext(
+    mode: ItoMode,
+  ): Promise<SonioxContextConfig | null> {
+    const context = await contextGrabber.gatherContext(mode)
+    this.sonioxContext = context
+
+    const userId = getCurrentUserId() || 'local-user'
+    const userDetails = await UserDetailsTable.findByUserId(userId)
+    const domainSlug = userDetails?.domain_context_slug || null
+
+    return domainContextProvider.buildSonioxContext(
+      domainSlug,
+      context.vocabularyWords,
+    )
   }
 
   private async gatherAndCacheContext(mode: ItoMode) {

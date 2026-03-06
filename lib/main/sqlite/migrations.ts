@@ -1136,4 +1136,27 @@ Un texte formel, clair et prêt à un usage professionnel. Rien d''autre.',
       DROP TABLE IF EXISTS custom_modes;
     `,
   },
+  {
+    id: '20260306000000_add_domain_contexts',
+    up: `
+      CREATE TABLE IF NOT EXISTS domain_contexts (
+        slug TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_fr TEXT,
+        icon TEXT DEFAULT 'globe',
+        description TEXT,
+        description_fr TEXT,
+        context_json TEXT NOT NULL,
+        is_system INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      ALTER TABLE user_details ADD COLUMN domain_context_slug TEXT DEFAULT NULL;
+    `,
+    down: `
+      ALTER TABLE user_details DROP COLUMN domain_context_slug;
+      DROP TABLE IF EXISTS domain_contexts;
+    `,
+  },
 ]

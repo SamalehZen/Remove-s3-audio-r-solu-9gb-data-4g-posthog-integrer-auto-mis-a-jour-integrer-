@@ -1179,3 +1179,32 @@ ipcMain.handle(
     }
   },
 )
+
+// Domain Contexts
+import { domainContextProvider } from '../main/context/DomainContextProvider'
+
+ipcMain.handle('domain-contexts:list', async () => {
+  return domainContextProvider.getAll().map(ctx => ({
+    slug: ctx.slug,
+    name: ctx.name,
+    nameFr: ctx.nameFr,
+    icon: ctx.icon,
+    description: ctx.description,
+    descriptionFr: ctx.descriptionFr,
+  }))
+})
+
+ipcMain.handle('domain-contexts:get-user-domain', async () => {
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  const details = await UserDetailsTable.findByUserId(userId)
+  return details?.domain_context_slug || null
+})
+
+ipcMain.handle(
+  'domain-contexts:set-user-domain',
+  async (_e, slug: string | null) => {
+    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+    await UserDetailsTable.updateDomainContext(userId, slug)
+    return { success: true }
+  },
+)

@@ -13,6 +13,13 @@ export interface SonioxTranslationConfig {
   languageB?: string
 }
 
+export interface SonioxContextConfig {
+  general?: Array<{ key: string; value: string }>
+  text?: string
+  terms?: string[]
+  translation_terms?: Array<{ source: string; target: string }>
+}
+
 export interface SonioxEvents {
   token: (token: SonioxToken) => void
   'final-text': (text: string) => void
@@ -32,7 +39,10 @@ export class SonioxStreamingService extends EventEmitter {
   async start(
     tempApiKey: string,
     translationConfig?: SonioxTranslationConfig,
-    options?: { disableEndpointDetection?: boolean },
+    options?: {
+      disableEndpointDetection?: boolean
+      context?: SonioxContextConfig
+    },
   ): Promise<void> {
     if (this.isActive) {
       console.warn(
@@ -57,6 +67,24 @@ export class SonioxStreamingService extends EventEmitter {
 
     if (!translationConfig) {
       sessionConfig.language_hints = ['fr']
+    }
+
+    if (options?.context) {
+      const ctx: any = {}
+      if (options.context.general?.length) ctx.general = options.context.general
+      if (options.context.text) ctx.text = options.context.text
+      if (options.context.terms?.length) ctx.terms = options.context.terms
+      if (options.context.translation_terms?.length)
+        ctx.translation_terms = options.context.translation_terms
+      if (Object.keys(ctx).length > 0) {
+        sessionConfig.context = ctx
+        console.log('[SonioxStreaming] Context injected:', {
+          general: ctx.general?.length || 0,
+          text: ctx.text?.length || 0,
+          terms: ctx.terms?.length || 0,
+          translation_terms: ctx.translation_terms?.length || 0,
+        })
+      }
     }
 
     if (translationConfig) {
