@@ -667,14 +667,14 @@ export class ItoSessionManager {
       this.contextGatherPromise = null
     }
 
-    if (mode === ItoMode.CONTEXT_AWARENESS) {
+    if (mode === ItoMode.CONTEXT_AWARENESS && this.sonioxContext?.screenCaptureBase64) {
       try {
         const ctx = this.sonioxContext
 
         const requestBody: Record<string, any> = {
           transcript: rawTranscript,
-          screenshotBase64: ctx?.screenCaptureBase64 || undefined,
-          screenshotMimeType: ctx?.screenCaptureMimeType || 'image/jpeg',
+          screenshotBase64: ctx.screenCaptureBase64,
+          screenshotMimeType: ctx.screenCaptureMimeType || 'image/jpeg',
           context: {
             windowTitle: ctx?.windowTitle || undefined,
             appName: ctx?.appName || undefined,
@@ -693,6 +693,10 @@ export class ItoSessionManager {
 
         if (response?.success && response?.transcript) {
           let textToInsert = response.transcript
+
+          if (ctx?.replacements && ctx.replacements.length > 0) {
+            textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+          }
 
           const { grammarServiceEnabled } = getAdvancedSettings()
           if (grammarServiceEnabled) {
@@ -727,16 +731,20 @@ export class ItoSessionManager {
       const { llm } = getAdvancedSettings()
       const ctx = this.sonioxContext
 
-      const requestBody: Record<string, any> = {
-        transcript: rawTranscript,
-        mode:
-          mode === ItoMode.EDIT
+      const effectiveMode =
+        mode === ItoMode.CONTEXT_AWARENESS && !ctx?.screenCaptureBase64
+          ? 'transcribe'
+          : mode === ItoMode.EDIT
             ? 'edit'
             : mode === ItoMode.TRANSLATE
               ? 'translate'
               : mode === ItoMode.CONTEXT_AWARENESS
                 ? 'context_awareness'
-                : 'transcribe',
+                : 'transcribe'
+
+      const requestBody: Record<string, any> = {
+        transcript: rawTranscript,
+        mode: effectiveMode,
         llmSettings: {
           llmProvider: llm?.llmProvider || undefined,
           llmModel: llm?.llmModel || undefined,

@@ -135,6 +135,12 @@ RÈGLES:
 - Langue de sortie = langue de la commande vocale
 - Ne JAMAIS poser de questions, inventer des infos, ou ajouter des préambules
 
+INTERDICTION:
+- Ne JAMAIS inclure les métadonnées de contexte dans la sortie (nom, occupation, titre de fenêtre, nom d'application, URL, domaine)
+- Ne JAMAIS reproduire les marqueurs de contexte ({START_USER_DETAILS_MARKER}, {END_USER_DETAILS_MARKER}, etc.)
+- Ne JAMAIS mentionner "App:", "Fenêtre:", "URL:", "Utilisateur:" ou toute métadonnée technique
+- Si le contenu dicté est vide ou incompréhensible, retourner une chaîne vide.
+
 SORTIE: le résultat uniquement, directement.`
 
 export const DEFAULT_ADVANCED_SETTINGS_STRUCT = {

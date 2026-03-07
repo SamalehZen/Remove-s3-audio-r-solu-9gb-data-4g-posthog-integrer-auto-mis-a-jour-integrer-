@@ -11,6 +11,15 @@ import { guardLanguage, detectTextLanguage } from './ito/languageGuard.js'
 import type { ItoContext } from './ito/types.js'
 import type { SupabaseJwtPayload } from '../auth/supabaseJwt.js'
 
+function sanitizeVisionOutput(text: string): string {
+  let result = filterLeakedContext(text, true)
+  result = result
+    .replace(/(?:^|\n)\s*(?:App|Fen\u00eatre|URL|Utilisateur)\s*:\s*[^\n]*/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return result
+}
+
 interface AdjustTranscriptBody {
   transcript: string
   mode: 'transcribe' | 'edit' | 'translate' | 'context_awareness'
@@ -193,7 +202,7 @@ export const registerSonioxRoutes = async (
               console.log(
                 `[adjust-transcript] Vision analysis succeeded on attempt ${attempt}: ${visionResult.length} chars`,
               )
-              reply.send({ success: true, transcript: visionResult.trim() })
+              reply.send({ success: true, transcript: sanitizeVisionOutput(visionResult) })
               return
             } catch (visionError: any) {
               lastVisionError = visionError
@@ -404,7 +413,7 @@ export const registerSonioxRoutes = async (
           const duration = Date.now() - startTime
           console.log(`\u26A1 [adjust-context-light] Vision completed in ${duration}ms`)
 
-          reply.send({ success: true, transcript: visionResult.trim() })
+          reply.send({ success: true, transcript: sanitizeVisionOutput(visionResult) })
           return
         } catch (visionError: any) {
           const duration = Date.now() - startTime
