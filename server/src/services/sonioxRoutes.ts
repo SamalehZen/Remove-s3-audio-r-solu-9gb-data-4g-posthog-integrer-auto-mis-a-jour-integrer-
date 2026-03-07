@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { sonioxClient } from '../clients/sonioxClient.js'
-import { getLlmProvider } from '../clients/providerUtils.js'
+import { getLlmProvider, getAvailableLlmProviders } from '../clients/providerUtils.js'
 import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults.js'
 import { ItoMode } from '../generated/ito_pb.js'
 import { getPromptForMode, createUserPromptWithContext } from './ito/helpers.js'
@@ -245,7 +245,25 @@ export const registerSonioxRoutes = async (
         finalUserPrompt = `[LANGUAGE RULE: Your output MUST be in the SAME language as the user's dictated text below. Do NOT translate it. Do NOT switch to the language of the context metadata. Preserve the original language of the spoken text exactly.]\n${userPrompt}`
       }
 
-      const llmProvider = getLlmProvider(advancedSettings.llmProvider)
+      let llmProviderName = advancedSettings.llmProvider
+      let llmProvider
+      try {
+        llmProvider = getLlmProvider(llmProviderName)
+      } catch (providerError: any) {
+        console.warn(`[adjust-transcript] Provider "${llmProviderName}" unavailable: ${providerError.message}`)
+        const available = getAvailableLlmProviders()
+        if (available.length > 0) {
+          const fallback = available[0]
+          console.info(`[adjust-transcript] Falling back to provider "${fallback}"`)
+          llmProviderName = fallback
+          llmProvider = getLlmProvider(fallback)
+        } else {
+          console.error('[adjust-transcript] No LLM providers available, returning raw transcript')
+          reply.send({ success: true, transcript: trimmedTranscript })
+          return
+        }
+      }
+
       let adjustedTranscript = await llmProvider.adjustTranscript(finalUserPrompt, {
         temperature: advancedSettings.llmTemperature,
         model: advancedSettings.llmModel,
@@ -316,9 +334,25 @@ export const registerSonioxRoutes = async (
         return
       }
 
-      const llmProviderName = body.llmSettings?.llmProvider || DEFAULT_ADVANCED_SETTINGS.llmProvider
+      let llmProviderName = body.llmSettings?.llmProvider || DEFAULT_ADVANCED_SETTINGS.llmProvider
       const llmModel = body.llmSettings?.llmModel || DEFAULT_ADVANCED_SETTINGS.llmModel
-      const llmProvider = getLlmProvider(llmProviderName)
+      let llmProvider
+      try {
+        llmProvider = getLlmProvider(llmProviderName)
+      } catch (providerError: any) {
+        console.warn(`[adjust-transcript-light] Provider "${llmProviderName}" unavailable: ${providerError.message}`)
+        const available = getAvailableLlmProviders()
+        if (available.length > 0) {
+          const fallback = available[0]
+          console.info(`[adjust-transcript-light] Falling back to provider "${fallback}"`)
+          llmProviderName = fallback
+          llmProvider = getLlmProvider(fallback)
+        } else {
+          console.error('[adjust-transcript-light] No LLM providers available, returning raw transcript')
+          reply.send({ success: true, transcript: trimmedTranscript })
+          return
+        }
+      }
 
       const LLM_SERVER_TIMEOUT_MS = 4500
 
