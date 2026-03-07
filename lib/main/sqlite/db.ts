@@ -220,12 +220,19 @@ const initializeDatabase = (): Promise<void> => {
         reject(err)
       } else {
         console.info('Connected to SQLite database.')
-        runMigrations()
-          .then(resolve)
-          .catch(e => {
-            console.error('Failed to run migrations.', e)
-            reject(e)
-          })
+        db.run('PRAGMA foreign_keys = ON', (pragmaErr) => {
+          if (pragmaErr) {
+            console.error('Failed to enable foreign keys.', pragmaErr)
+            reject(pragmaErr)
+            return
+          }
+          runMigrations()
+            .then(resolve)
+            .catch(e => {
+              console.error('Failed to run migrations.', e)
+              reject(e)
+            })
+        })
       }
     })
   })

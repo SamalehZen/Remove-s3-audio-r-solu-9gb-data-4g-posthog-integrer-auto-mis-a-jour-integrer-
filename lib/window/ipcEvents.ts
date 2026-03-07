@@ -1208,7 +1208,8 @@ ipcMain.handle('mode-rules:add', async (_event, data: any) => {
 })
 
 ipcMain.handle('mode-rules:delete', async (_event, id: string) => {
-  await ModeActivationRuleTable.delete(id)
+  const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
+  await ModeActivationRuleTable.delete(id, userId)
   customModeResolver.clearCache()
 })
 

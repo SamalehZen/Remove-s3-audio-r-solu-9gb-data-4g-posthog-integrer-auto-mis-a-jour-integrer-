@@ -282,8 +282,11 @@ export const ModeActivationRuleTable = {
     return mapRuleRow(row)
   },
 
-  async delete(id: string): Promise<void> {
-    await run(`DELETE FROM mode_activation_rules WHERE id = ?`, [id])
+  async delete(id: string, userId: string): Promise<void> {
+    await run(
+      `DELETE FROM mode_activation_rules WHERE id = ? AND user_id = ?`,
+      [id, userId],
+    )
   },
 
   async deleteByMode(modeId: string, userId: string): Promise<void> {
