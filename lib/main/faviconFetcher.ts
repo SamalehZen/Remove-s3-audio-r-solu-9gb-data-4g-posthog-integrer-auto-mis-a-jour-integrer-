@@ -2,9 +2,41 @@ import { net } from 'electron'
 
 const KNOWN_DEFAULT_FAVICON_SIZES = new Set([726, 276, 124])
 
+const MULTI_PART_TLDS = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk',
+  'co.jp', 'or.jp', 'ne.jp',
+  'com.au', 'net.au', 'org.au',
+  'com.br', 'org.br', 'net.br',
+  'co.in', 'net.in', 'org.in',
+  'co.kr', 'or.kr',
+  'co.nz', 'net.nz', 'org.nz',
+  'co.za', 'org.za',
+  'com.mx', 'org.mx',
+  'com.cn', 'org.cn', 'net.cn',
+  'com.tw', 'org.tw',
+  'com.hk', 'org.hk',
+  'com.sg', 'org.sg',
+  'co.id', 'or.id',
+  'co.th', 'or.th',
+  'com.ar', 'org.ar',
+  'com.co', 'org.co',
+  'com.tr', 'org.tr',
+  'co.il', 'org.il',
+  'com.pl', 'org.pl',
+  'com.ua', 'org.ua',
+  'com.vn', 'org.vn',
+])
+
 function isSubdomain(domain: string): boolean {
   const parts = domain.split('.')
-  return parts.length > 2 && parts[0] !== 'www'
+  if (parts.length <= 2) return false
+  const lastTwo = parts.slice(-2).join('.')
+  const effectiveLength = MULTI_PART_TLDS.has(lastTwo)
+    ? parts.length - 1
+    : parts.length
+  if (effectiveLength <= 2) return false
+  if (effectiveLength === 3 && parts[0] === 'www') return false
+  return true
 }
 
 export async function fetchFavicon(domain: string): Promise<string | null> {

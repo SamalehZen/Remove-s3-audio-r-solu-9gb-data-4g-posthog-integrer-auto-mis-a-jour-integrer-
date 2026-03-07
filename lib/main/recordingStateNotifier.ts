@@ -332,12 +332,14 @@ export class RecordingStateNotifier {
   }
 
   private async prefetchFavicon(domain: string): Promise<string | null> {
+    const capturedGeneration = this.generation
     const favicon = await faviconCache.prefetch(domain, () =>
       fetchFavicon(domain),
     )
 
     if (
       favicon &&
+      this.generation === capturedGeneration &&
       this.isCurrentlyRecording &&
       this.currentMode !== null &&
       this.lastSentAppName === domain &&

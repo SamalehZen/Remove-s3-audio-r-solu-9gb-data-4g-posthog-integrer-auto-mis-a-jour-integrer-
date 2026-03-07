@@ -389,6 +389,8 @@ export class ActiveWindowMonitor extends EventEmitter {
     this.lastPolledDomain = this.cachedState?.browserInfo?.domain ?? null
     this.browserPollInterval = setInterval(async () => {
       if (!this.cachedState?.window) return
+      if (this.isBrowserUrlFetching) return
+      this.isBrowserUrlFetching = true
       try {
         const browserInfo = await getBrowserUrl(this.cachedState.window)
         const newDomain = browserInfo.domain ?? null
@@ -402,7 +404,14 @@ export class ActiveWindowMonitor extends EventEmitter {
           }
           this.emit('browser-url-changed', newDomain)
         }
-      } catch {}
+      } catch {} finally {
+        this.isBrowserUrlFetching = false
+        if (this.pendingBrowserUrlWindow) {
+          const next = this.pendingBrowserUrlWindow
+          this.pendingBrowserUrlWindow = null
+          this.executeBrowserUrlFetch(next)
+        }
+      }
     }, BROWSER_POLL_INTERVAL_MS)
   }
 

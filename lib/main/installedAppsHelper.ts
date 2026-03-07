@@ -513,7 +513,7 @@ async function listLinuxApps(): Promise<InstalledAppInfo[]> {
           const noDisplay = content.match(/^NoDisplay=true$/m)
           if (noDisplay) continue
           const nameMatch = content.match(/^Name=(.+)$/m)
-          const execMatch = content.match(/^Exec=(\S+)/)
+          const execMatch = content.match(/^Exec=(\S+)/m)
           if (!nameMatch) continue
           const name = nameMatch[1]
           if (seen.has(name.toLowerCase()) || isBlocked(name)) continue
