@@ -4,7 +4,9 @@ const KNOWN_DEFAULT_FAVICON_SIZES = new Set([726, 276, 124])
 
 function isSubdomain(domain: string): boolean {
   const parts = domain.split('.')
-  return parts.length > 2 && parts[0] !== 'www'
+  if (parts.length <= 2) return false
+  if (parts.length === 3 && parts[0] === 'www') return false
+  return true
 }
 
 export async function fetchFavicon(domain: string): Promise<string | null> {

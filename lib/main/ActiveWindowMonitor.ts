@@ -389,6 +389,7 @@ export class ActiveWindowMonitor extends EventEmitter {
     this.lastPolledDomain = this.cachedState?.browserInfo?.domain ?? null
     this.browserPollInterval = setInterval(async () => {
       if (!this.cachedState?.window) return
+      if (this.isBrowserUrlFetching) return
       try {
         const browserInfo = await getBrowserUrl(this.cachedState.window)
         const newDomain = browserInfo.domain ?? null

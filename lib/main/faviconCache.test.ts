@@ -205,7 +205,7 @@ describe('FaviconCache', () => {
         ),
     )
 
-    void cache.prefetch('slow.com', fetcher)
+    const prefetchPromise = cache.prefetch('slow.com', fetcher)
     await new Promise(resolve => setTimeout(resolve, 0))
 
     const start = Date.now()
@@ -214,6 +214,8 @@ describe('FaviconCache', () => {
 
     expect(result).toBeNull()
     expect(elapsed).toBeLessThan(200)
+
+    await prefetchPromise
   })
 
   test('normalizes domains consistently (www, uppercase)', async () => {
