@@ -9,6 +9,7 @@ import { applyReplacements, filterLeakedContext } from './ito/llmUtils.js'
 import { guardLanguage, detectTextLanguage } from './ito/languageGuard.js'
 import type { ItoContext } from './ito/types.js'
 import type { SupabaseJwtPayload } from '../auth/supabaseJwt.js'
+import { CONTEXT_AWARENESS_LIGHT_PROMPT } from './ito/constants.js'
 
 interface AdjustTranscriptBody {
   transcript: string
@@ -279,6 +280,94 @@ export const registerSonioxRoutes = async (
       reply.code(500).send({
         success: false,
         error: error?.message || 'Failed to adjust transcript',
+      })
+    }
+  })
+
+  fastify.post('/adjust-context-light', async (request, reply) => {
+    try {
+      const user = (request as any).user as SupabaseJwtPayload | undefined
+      if (requireAuth && !user?.sub) {
+        reply.code(401).send({ success: false, error: 'Unauthorized' })
+        return
+      }
+
+      const body = request.body as {
+        transcript: string
+        screenshotBase64?: string
+        screenshotMimeType?: string
+        context?: {
+          windowTitle?: string
+          appName?: string
+          browserUrl?: string
+          userDetailsContext?: string
+        }
+      }
+
+      if (!body?.transcript || typeof body.transcript !== 'string') {
+        reply.code(400).send({ success: false, error: 'Missing transcript field' })
+        return
+      }
+
+      const trimmedTranscript = body.transcript.trim()
+      if (trimmedTranscript.length < 2) {
+        reply.send({ success: true, transcript: trimmedTranscript })
+        return
+      }
+
+      const contextParts = [
+        body.context?.appName && `App: ${body.context.appName}`,
+        body.context?.windowTitle && `Fen\u00eatre: ${body.context.windowTitle}`,
+        body.context?.browserUrl && `URL: ${body.context.browserUrl}`,
+        body.context?.userDetailsContext && `Utilisateur: ${body.context.userDetailsContext}`,
+      ].filter(Boolean).join(' | ')
+
+      const systemPrompt = contextParts
+        ? `${CONTEXT_AWARENESS_LIGHT_PROMPT}\n\nCONTEXTE: ${contextParts}`
+        : CONTEXT_AWARENESS_LIGHT_PROMPT
+
+      if (body.screenshotBase64 && body.screenshotBase64.length > 100) {
+        const { geminiClient } = await import('../clients/geminiClient.js')
+
+        if (!geminiClient) {
+          console.error('[adjust-context-light] geminiClient is null \u2014 GEMINI_API_KEY not set')
+          reply.send({ success: true, transcript: trimmedTranscript })
+          return
+        }
+
+        const startTime = Date.now()
+        try {
+          const visionResult = await geminiClient.analyzeScreenContext(
+            body.screenshotBase64,
+            trimmedTranscript,
+            systemPrompt,
+            {
+              temperature: 0.2,
+              model: 'gemini-3.1-flash-lite-preview',
+              max_tokens: 1024,
+              mimeType: body.screenshotMimeType || 'image/jpeg',
+            },
+          )
+          const duration = Date.now() - startTime
+          console.log(`\u26A1 [adjust-context-light] Vision completed in ${duration}ms`)
+
+          reply.send({ success: true, transcript: visionResult.trim() })
+          return
+        } catch (visionError: any) {
+          const duration = Date.now() - startTime
+          console.error(`[adjust-context-light] Vision failed in ${duration}ms:`, visionError?.message)
+          reply.send({ success: true, transcript: trimmedTranscript })
+          return
+        }
+      }
+
+      console.warn('[adjust-context-light] No screenshot provided, returning raw transcript')
+      reply.send({ success: true, transcript: trimmedTranscript })
+    } catch (error: any) {
+      fastify.log.error({ err: error }, 'Failed to process context-light')
+      reply.code(500).send({
+        success: false,
+        error: error?.message || 'Failed to process context',
       })
     }
   })

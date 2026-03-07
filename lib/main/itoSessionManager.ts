@@ -637,6 +637,61 @@ export class ItoSessionManager {
       this.contextGatherPromise = null
     }
 
+    if (mode === ItoMode.CONTEXT_AWARENESS) {
+      try {
+        const ctx = this.sonioxContext
+        const requestBody: Record<string, any> = {
+          transcript: rawTranscript,
+          screenshotBase64: ctx?.screenCaptureBase64 || undefined,
+          screenshotMimeType: ctx?.screenCaptureMimeType || 'image/jpeg',
+          context: {
+            windowTitle: ctx?.windowTitle || undefined,
+            appName: ctx?.appName || undefined,
+            browserUrl: ctx?.browserUrl || undefined,
+            userDetailsContext: ctx?.userDetails
+              ? this.buildUserDetailsContextString(ctx.userDetails)
+              : undefined,
+          },
+        }
+
+        const response = await itoHttpClient.post(
+          '/adjust-context-light',
+          requestBody,
+          { requireAuth: true, timeoutMs: 5000 },
+        )
+
+        if (response?.success && response?.transcript) {
+          let textToInsert = response.transcript
+
+          const { grammarServiceEnabled } = getAdvancedSettings()
+          if (grammarServiceEnabled) {
+            textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+            textToInsert = this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+          }
+
+          this.textInserter.insertText(textToInsert)
+        } else {
+          console.warn('[itoSessionManager] Context light failed, inserting raw:', response?.error)
+          this.textInserter.insertText(rawTranscript)
+        }
+      } catch (error) {
+        console.error('[itoSessionManager] Context light error, falling back to raw:', error)
+        this.textInserter.insertText(rawTranscript)
+      } finally {
+        recordingStateNotifier.notifyProcessingStopped()
+      }
+
+      try {
+        await interactionManager.createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+      } catch (error) {
+        console.error('[itoSessionManager] Failed to create interaction:', error)
+      }
+
+      allowAppNap()
+      this.cleanupSonioxState()
+      return
+    }
+
     try {
       const { llm } = getAdvancedSettings()
       const ctx = this.sonioxContext
