@@ -79,9 +79,7 @@ export class ItoSessionManager {
           )
           // Override ItoMode with the custom mode's configured itoMode so that
           // modes with a prompt (Note, Mail, Message…) go through LLM post-processing
-          if (resolved.mode.itoMode > 0) {
-            effectiveMode = resolved.mode.itoMode as ItoMode
-          }
+          effectiveMode = resolved.mode.itoMode as ItoMode
           console.log(
             '[itoSessionManager] Auto-activated custom mode:',
             resolved.mode.name,
@@ -472,6 +470,8 @@ export class ItoSessionManager {
           )
         }
       }
+      contextGrabber.setCustomModePrompt(null)
+      this.resolvedCustomMode = null
       allowAppNap()
       return
     }
@@ -510,6 +510,8 @@ export class ItoSessionManager {
     } else {
       console.warn('[itoSessionManager] No stream response promise to wait for')
       recordingStateNotifier.notifyProcessingStopped()
+      contextGrabber.setCustomModePrompt(null)
+      this.resolvedCustomMode = null
     }
   }
 

@@ -221,6 +221,7 @@ class AgentSessionManager {
           /* expected */
         }
       }
+      contextGrabber.setCustomModePrompt(null)
       allowAppNap()
       return
     }
@@ -302,6 +303,7 @@ class AgentSessionManager {
     if (!rawTranscript || rawTranscript.trim().length < 2) {
       console.info('[AgentSession] No speech from Soniox, skipping agent')
       recordingStateNotifier.notifyProcessingStopped()
+      contextGrabber.setCustomModePrompt(null)
       allowAppNap()
       return
     }
