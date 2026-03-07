@@ -1159,4 +1159,56 @@ Un texte formel, clair et prêt à un usage professionnel. Rien d''autre.',
       DROP TABLE IF EXISTS domain_contexts;
     `,
   },
+  {
+    id: '20260307000000_add_fk_mode_activation_rules',
+    up: `
+      CREATE TABLE mode_activation_rules_new (
+        id TEXT PRIMARY KEY,
+        mode_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        app_name TEXT,
+        icon_base64 TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (mode_id, user_id) REFERENCES custom_modes(id, user_id) ON DELETE CASCADE
+      );
+
+      INSERT INTO mode_activation_rules_new
+        SELECT id, mode_id, user_id, rule_type, value, app_name, icon_base64, created_at
+        FROM mode_activation_rules;
+
+      DROP TABLE mode_activation_rules;
+
+      ALTER TABLE mode_activation_rules_new RENAME TO mode_activation_rules;
+
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_user_id ON mode_activation_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_mode_id ON mode_activation_rules(mode_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
+    `,
+    down: `
+      CREATE TABLE mode_activation_rules_old (
+        id TEXT PRIMARY KEY,
+        mode_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        app_name TEXT,
+        icon_base64 TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      INSERT INTO mode_activation_rules_old
+        SELECT id, mode_id, user_id, rule_type, value, app_name, icon_base64, created_at
+        FROM mode_activation_rules;
+
+      DROP TABLE mode_activation_rules;
+
+      ALTER TABLE mode_activation_rules_old RENAME TO mode_activation_rules;
+
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_user_id ON mode_activation_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_mode_id ON mode_activation_rules(mode_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
+    `,
+  },
 ]

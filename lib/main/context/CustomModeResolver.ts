@@ -16,6 +16,7 @@ export interface ResolvedCustomMode {
 }
 
 interface CachedRules {
+  userId: string
   rules: ModeActivationRule[]
   timestamp: number
 }
@@ -30,15 +31,16 @@ class CustomModeResolver {
   }
 
   private async getRules(): Promise<ModeActivationRule[]> {
+    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
     if (
       this.cachedRules &&
+      this.cachedRules.userId === userId &&
       Date.now() - this.cachedRules.timestamp < CACHE_TTL_MS
     ) {
       return this.cachedRules.rules
     }
-    const userId = getCurrentUserId() || DEFAULT_LOCAL_USER_ID
     const rules = await ModeActivationRuleTable.findAllByUser(userId)
-    this.cachedRules = { rules, timestamp: Date.now() }
+    this.cachedRules = { userId, rules, timestamp: Date.now() }
     return rules
   }
 
@@ -86,7 +88,7 @@ class CustomModeResolver {
         rules.find(r => {
           if (r.ruleType !== 'app') return false
           const lowerValue = r.value.toLowerCase()
-          if (lowerExePath.includes(lowerValue)) return true
+          if (lowerValue.length > 0 && lowerExePath.includes(lowerValue)) return true
           const prefix = lowerValue.split('_')[0]
           if (prefix && prefix.includes('.') && lowerExePath.includes(prefix))
             return true
@@ -108,6 +110,7 @@ class CustomModeResolver {
         rules.find(
           r =>
             r.ruleType === 'app' &&
+            lowerAppName.length > 0 &&
             r.value.toLowerCase().includes(lowerAppName),
         ) ?? null
     }
@@ -122,7 +125,7 @@ class CustomModeResolver {
           if (ruleAppName && ruleAppName === lowerAppName) return true
           if (ruleAppName && lowerAppName.includes(ruleAppName)) return true
           if (ruleAppName && ruleAppName.includes(lowerAppName)) return true
-          return lowerAppName.includes(lowerValue)
+          return lowerValue.length > 0 && lowerAppName.includes(lowerValue)
         }) ?? null
     }
 
