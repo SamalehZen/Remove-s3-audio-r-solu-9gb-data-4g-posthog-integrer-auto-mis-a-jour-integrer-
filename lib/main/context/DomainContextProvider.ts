@@ -98,15 +98,27 @@ class DomainContextProvider {
       terms: mergedTerms.length > 0 ? mergedTerms : undefined,
     }
 
-    const serialized = JSON.stringify(result)
+    let serialized = JSON.stringify(result)
     if (serialized.length > MAX_CONTEXT_CHARS) {
       console.warn(
         `[DomainContextProvider] Context exceeds ${MAX_CONTEXT_CHARS} chars (${serialized.length}), truncating terms`,
       )
-      const overhead = serialized.length - MAX_CONTEXT_CHARS
-      const termsToRemove = Math.ceil(overhead / 20)
-      if (result.terms && result.terms.length > termsToRemove) {
-        result.terms = result.terms.slice(0, result.terms.length - termsToRemove)
+      while (serialized.length > MAX_CONTEXT_CHARS) {
+        if (result.terms && result.terms.length > 0) {
+          const overhead = serialized.length - MAX_CONTEXT_CHARS
+          const termsToRemove = Math.max(1, Math.ceil(overhead / 20))
+          if (result.terms.length > termsToRemove) {
+            result.terms = result.terms.slice(
+              0,
+              result.terms.length - termsToRemove,
+            )
+          } else {
+            result.terms = undefined
+          }
+        } else {
+          break
+        }
+        serialized = JSON.stringify(result)
       }
     }
 

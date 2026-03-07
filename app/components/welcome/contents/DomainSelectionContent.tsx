@@ -21,18 +21,35 @@ export default function DomainSelectionContent() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    window.api.domainContexts.list().then(list => {
-      setDomains(list)
-      setIsLoading(false)
-    })
+    window.api.domainContexts
+      .list()
+      .then(list => {
+        setDomains(list)
+      })
+      .catch(error => {
+        console.error(
+          '[DomainSelectionContent] Failed to load domains:',
+          error,
+        )
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
     window.api.domainContexts.getUserDomain().then(slug => {
       if (slug) setSelectedSlug(slug)
-    })
+    }).catch(() => {})
   }, [])
 
   const handleContinue = async () => {
     if (selectedSlug) {
-      await window.api.domainContexts.setUserDomain(selectedSlug)
+      try {
+        await window.api.domainContexts.setUserDomain(selectedSlug)
+      } catch (error) {
+        console.error(
+          '[DomainSelectionContent] Failed to set domain:',
+          error,
+        )
+      }
     }
     incrementOnboardingStep()
   }

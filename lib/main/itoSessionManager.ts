@@ -25,6 +25,7 @@ import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
 import { domainContextProvider } from './context/DomainContextProvider'
 import { UserDetailsTable } from './sqlite/userDetailsRepo'
+import { DictionaryTable } from './sqlite/repo'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
@@ -188,6 +189,8 @@ export class ItoSessionManager {
         const userId = getCurrentUserId() || 'local-user'
         const userDetails = await UserDetailsTable.findByUserId(userId)
         const hasDomainContext = !!userDetails?.domain_context_slug
+        const dictionaryItems = await DictionaryTable.findAll(userId)
+        const hasVocabulary = dictionaryItems.length > 0
 
         const preWarmed = this.preWarmedSonioxService
         this.preWarmedSonioxService = null
@@ -198,7 +201,8 @@ export class ItoSessionManager {
           !preWarmed.hasEncounteredError() &&
           Date.now() - this.preWarmTimestamp < this.PRE_WARM_TTL_MS &&
           mode === ItoMode.TRANSCRIBE &&
-          !hasDomainContext
+          !hasDomainContext &&
+          !hasVocabulary
         ) {
           this.sonioxService = preWarmed
           this.sonioxService.on('error', (error: Error) => {
