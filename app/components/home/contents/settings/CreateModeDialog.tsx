@@ -7,6 +7,7 @@ import {
   DialogDescription,
 } from '@/app/components/ui/dialog'
 import { useCustomModesStore } from '@/app/store/useCustomModesStore'
+import { DEFAULT_MODE_PROMPTS } from '@/app/constants/modePresets'
 import {
   Sparkles,
   Microphone,
@@ -15,6 +16,7 @@ import {
   FileText,
   UsersGroup,
   Square,
+  Pencil,
 } from '@mynaui/icons-react'
 
 type PresetConfig = {
@@ -35,7 +37,7 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'super',
     itoMode: 1,
     description: 'Enhanced AI editing & rewriting',
-    promptTemplate: '',
+    promptTemplate: DEFAULT_MODE_PROMPTS.super,
     recommended: true,
     IconComponent: Sparkles,
   },
@@ -45,7 +47,7 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'voice_to_text',
     itoMode: 0,
     description: 'Accurate verbatim transcription',
-    promptTemplate: '',
+    promptTemplate: DEFAULT_MODE_PROMPTS.voice_to_text,
     IconComponent: Microphone,
   },
   {
@@ -54,8 +56,7 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'message',
     itoMode: 1,
     description: 'Casual, conversational tone',
-    promptTemplate:
-      '- Keep the language casual and conversational like a text message\n- Capitalize the first letter of each sentence\n- Remove filler words\n- Keep question marks and exclamation points\n- Never end the last sentence with a period',
+    promptTemplate: DEFAULT_MODE_PROMPTS.message,
     IconComponent: Message,
   },
   {
@@ -64,8 +65,7 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'mail',
     itoMode: 1,
     description: 'Professional email format',
-    promptTemplate:
-      '- Sound like the speaker, but written\n- Fix grammar, remove filler\n- Format as a professional email with greeting, body, and sign-off\n- Preserve the speaker greeting and sign-off if present\n- DO NOT introduce new phrasing or change intent',
+    promptTemplate: DEFAULT_MODE_PROMPTS.mail,
     IconComponent: Envelope,
   },
   {
@@ -74,8 +74,7 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'note',
     itoMode: 1,
     description: 'Structured notes & bullet points',
-    promptTemplate:
-      '- Organize the speech into clear, structured notes\n- Use bullet points for main ideas\n- Add headers for distinct topics\n- Remove filler words and repetition\n- Keep the original meaning intact',
+    promptTemplate: DEFAULT_MODE_PROMPTS.note,
     IconComponent: FileText,
   },
   {
@@ -84,9 +83,17 @@ const PRESET_CONFIGS: PresetConfig[] = [
     presetType: 'meeting',
     itoMode: 1,
     description: 'Meeting summaries & action items',
-    promptTemplate:
-      '- Structure as meeting notes with clear sections\n- List action items and decisions separately\n- Include key discussion points\n- Keep it professional and concise',
+    promptTemplate: DEFAULT_MODE_PROMPTS.meeting,
     IconComponent: UsersGroup,
+  },
+  {
+    name: 'Custom Prompt',
+    icon: 'custom_prompt',
+    presetType: 'custom_prompt',
+    itoMode: 1,
+    description: 'Your prompt replaces the base prompt entirely',
+    promptTemplate: '',
+    IconComponent: Pencil,
   },
   {
     name: 'Blank',

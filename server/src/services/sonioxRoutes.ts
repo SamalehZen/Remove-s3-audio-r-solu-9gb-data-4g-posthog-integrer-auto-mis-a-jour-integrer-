@@ -132,8 +132,8 @@ export const registerSonioxRoutes = async (
           ? getTranslationTonePrompt(windowContext.tonePrompt, targetLang)
           : getTranslationBasePrompt(basePrompt, targetLang)
       } else if (hasTonePrompt) {
-        systemPrompt = `${basePrompt}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
-        console.log(`[adjust-transcript] Combined base prompt (${basePrompt.length} chars) + tone (${windowContext.tonePrompt.length} chars)`)
+        systemPrompt = windowContext.tonePrompt
+        console.log(`[adjust-transcript] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
       } else {
         systemPrompt = basePrompt
       }
@@ -163,7 +163,7 @@ export const registerSonioxRoutes = async (
 
           const caBasePrompt = getPromptForMode(mode, advancedSettings)
           const baseSystemPrompt = hasTonePrompt
-            ? `${caBasePrompt}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+            ? windowContext.tonePrompt
             : caBasePrompt
 
           const enrichedSystemPrompt = contextParts
@@ -219,7 +219,7 @@ export const registerSonioxRoutes = async (
 
         const editFallback = getPromptForMode(ItoMode.EDIT, advancedSettings)
         systemPrompt = hasTonePrompt
-          ? `${editFallback}\n\nOUTPUT STYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+          ? windowContext.tonePrompt
           : editFallback
         console.log(`[adjust-transcript] Vision fallback to EDIT mode, hasTone=${hasTonePrompt}`)
       }

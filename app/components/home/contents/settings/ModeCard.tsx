@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import React from 'react'
 import { useCustomModesStore, type CustomMode } from '@/app/store/useCustomModesStore'
+import { DEFAULT_MODE_PROMPTS } from '@/app/constants/modePresets'
 import { ModeActivationRules } from './ModeActivationRules'
 import { Button } from '@/app/components/ui/button'
 import {
@@ -20,7 +21,9 @@ import {
   FileText,
   UsersGroup,
   Square,
+  Pencil,
   Trash,
+  Refresh,
 } from '@mynaui/icons-react'
 
 function getModeIcon(icon: string, className: string): React.ReactElement {
@@ -39,6 +42,8 @@ function getModeIcon(icon: string, className: string): React.ReactElement {
       return <FileText className={className} />
     case 'meeting':
       return <UsersGroup className={className} />
+    case 'custom_prompt':
+      return <Pencil className={className} />
     default:
       return <Square className={className} />
   }
@@ -51,6 +56,7 @@ const PRESET_OPTIONS = [
   { value: 'mail', label: 'Mail', itoMode: 1 },
   { value: 'note', label: 'Note', itoMode: 1 },
   { value: 'meeting', label: 'Meeting', itoMode: 1 },
+  { value: 'custom_prompt', label: 'Custom Prompt', itoMode: 1 },
   { value: 'blank', label: 'Blank', itoMode: 0 },
 ]
 
@@ -103,6 +109,15 @@ export function ModeCard({ mode }: Props) {
       updateMode({ id: mode.id, promptTemplate: value })
     }, 500)
   }
+
+  const handleResetPrompt = () => {
+    const defaultPrompt = DEFAULT_MODE_PROMPTS[mode.presetType] ?? ''
+    setLocalPrompt(defaultPrompt)
+    updateMode({ id: mode.id, promptTemplate: defaultPrompt })
+  }
+
+  const defaultPrompt = DEFAULT_MODE_PROMPTS[mode.presetType] ?? ''
+  const canReset = defaultPrompt !== '' && localPrompt !== defaultPrompt
 
   const handlePresetChange = (presetType: string) => {
     const preset = PRESET_OPTIONS.find(p => p.value === presetType)
@@ -195,9 +210,20 @@ export function ModeCard({ mode }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[var(--color-subtext)]">
-              Prompt template
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-[var(--color-subtext)]">
+                Custom prompt
+              </label>
+              {canReset && (
+                <button
+                  onClick={handleResetPrompt}
+                  className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 transition-colors"
+                >
+                  <Refresh className="w-3 h-3" />
+                  Reset
+                </button>
+              )}
+            </div>
             <textarea
               className="w-full bg-white border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent resize-none"
               rows={3}

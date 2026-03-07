@@ -77,8 +77,6 @@ export class ItoSessionManager {
           contextGrabber.setCustomModePrompt(
             resolved.mode.promptTemplate || null,
           )
-          // Override ItoMode with the custom mode's configured itoMode so that
-          // modes with a prompt (Note, Mail, Message…) go through LLM post-processing
           effectiveMode = resolved.mode.itoMode as ItoMode
           console.log(
             '[itoSessionManager] Auto-activated custom mode:',
