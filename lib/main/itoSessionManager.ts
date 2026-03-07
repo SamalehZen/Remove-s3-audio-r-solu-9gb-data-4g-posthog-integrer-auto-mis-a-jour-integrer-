@@ -731,20 +731,16 @@ export class ItoSessionManager {
       const { llm } = getAdvancedSettings()
       const ctx = this.sonioxContext
 
-      const effectiveMode =
-        mode === ItoMode.CONTEXT_AWARENESS && !ctx?.screenCaptureBase64
-          ? 'transcribe'
-          : mode === ItoMode.EDIT
+      const requestBody: Record<string, any> = {
+        transcript: rawTranscript,
+        mode:
+          mode === ItoMode.EDIT
             ? 'edit'
             : mode === ItoMode.TRANSLATE
               ? 'translate'
               : mode === ItoMode.CONTEXT_AWARENESS
                 ? 'context_awareness'
-                : 'transcribe'
-
-      const requestBody: Record<string, any> = {
-        transcript: rawTranscript,
-        mode: effectiveMode,
+                : 'transcribe',
         llmSettings: {
           llmProvider: llm?.llmProvider || undefined,
           llmModel: llm?.llmModel || undefined,
