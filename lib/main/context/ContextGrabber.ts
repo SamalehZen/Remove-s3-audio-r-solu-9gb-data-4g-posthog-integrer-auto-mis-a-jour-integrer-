@@ -45,6 +45,7 @@ export interface ContextData {
   advancedSettings: ReturnType<typeof getAdvancedSettings>
   tone: Tone | null
   screenCaptureBase64: string | null
+  screenCaptureMimeType: string | null
   screenThumbnailBase64: string | null
   contextSource: 'screen' | 'selection' | null
 }
@@ -105,6 +106,7 @@ export class ContextGrabber {
 
     let contextText = ''
     let screenCaptureBase64: string | null = null
+    let screenCaptureMimeType: string | null = null
     let screenThumbnailBase64: string | null = null
     let contextSource: 'screen' | 'selection' | null = null
 
@@ -119,10 +121,15 @@ export class ContextGrabber {
         const captureMode: CaptureMode =
           settings?.contextAwarenessCaptureMode || 'fullscreen'
 
-        const capture = await captureScreen(captureMode)
+        const capture = await captureScreen(captureMode, {
+          format: 'jpeg',
+          maxWidth: 1280,
+          quality: 80,
+        })
         if (capture) {
           screenCaptureBase64 = capture.base64
           screenThumbnailBase64 = capture.thumbnailBase64
+          screenCaptureMimeType = capture.mimeType
           contextSource = 'screen'
           console.log(
             `[ContextGrabber] CONTEXT_AWARENESS captured ${captureMode}: ${capture.width}x${capture.height}`,
@@ -166,6 +173,7 @@ export class ContextGrabber {
       advancedSettings,
       tone: effectiveTone,
       screenCaptureBase64,
+      screenCaptureMimeType,
       screenThumbnailBase64,
       contextSource,
     }

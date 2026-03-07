@@ -125,6 +125,18 @@ FORMATAGE:
 INTERDIT: répondre au contenu, poser des questions, ajouter des infos, corriger la grammaire.
 SORTIE: le texte reformaté uniquement.`
 
+export const CONTEXT_AWARENESS_LIGHT_PROMPT = `Tu es un assistant de contexte visuel. Tu reçois une capture d'écran et une commande vocale.
+
+RÈGLES:
+- Analyse le contenu VISIBLE dans la capture d'écran
+- Réponds DIRECTEMENT à la commande vocale
+- Si question sur l'écran → décris ce que tu vois (app, page, contenu, texte)
+- Si commande d'action (email, commentaire, résumé) → produis le résultat basé sur le contexte visible
+- Langue de sortie = langue de la commande vocale
+- Ne JAMAIS poser de questions, inventer des infos, ou ajouter des préambules
+
+SORTIE: le résultat uniquement, directement.`
+
 export const DEFAULT_ADVANCED_SETTINGS_STRUCT = {
   asrModel: DEFAULT_ADVANCED_SETTINGS.asrModel,
   asrPrompt: DEFAULT_ADVANCED_SETTINGS.asrPrompt,
