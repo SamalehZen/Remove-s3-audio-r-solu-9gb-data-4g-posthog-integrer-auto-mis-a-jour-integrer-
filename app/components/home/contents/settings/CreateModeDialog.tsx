@@ -108,20 +108,22 @@ export function CreateModeDialog({ open, onOpenChange }: Props) {
   const { modes, createMode } = useCustomModesStore()
 
   const handleSelectPreset = async (preset: PresetConfig) => {
-    await createMode({
+    const result = await createMode({
       name: preset.name,
       icon: preset.icon,
       presetType: preset.presetType,
       itoMode: preset.itoMode,
       promptTemplate: preset.promptTemplate,
       language: 'auto',
-      sortOrder: modes.length,
+      sortOrder: modes.length > 0 ? Math.max(...modes.map(m => m.sortOrder)) + 1 : 0,
       isDefault: false,
       isSystem: false,
       playbackWhenRecording: 'keep_playing',
       autoPaste: 'on',
     })
-    onOpenChange(false)
+    if (result) {
+      onOpenChange(false)
+    }
   }
 
   return (

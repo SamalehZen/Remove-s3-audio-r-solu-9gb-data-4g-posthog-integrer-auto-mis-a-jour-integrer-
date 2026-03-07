@@ -80,7 +80,7 @@ export function ModeActivationRules({ mode }: Props) {
     await addRule({
       modeId: mode.id,
       ruleType: 'app',
-      value: app.exePath || app.bundleId || app.name,
+      value: app.bundleId || app.exePath || app.name,
       appName: app.name,
       iconBase64: app.iconBase64 ?? undefined,
     })
