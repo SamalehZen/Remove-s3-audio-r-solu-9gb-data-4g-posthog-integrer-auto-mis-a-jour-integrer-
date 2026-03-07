@@ -567,6 +567,36 @@ export class ItoSessionManager {
 
       let textToInsert = rawTranscript
 
+      // ── LLM light post-processing (Flow features) ──
+      try {
+        const advSettings = getAdvancedSettings()
+        const requestBody = {
+          transcript: rawTranscript,
+          llmSettings: {
+            llmProvider: advSettings.llm?.llmProvider || undefined,
+            llmModel: advSettings.llm?.llmModel || undefined,
+          },
+        }
+
+        const response = await itoHttpClient.post(
+          '/adjust-transcript-light',
+          requestBody,
+          { requireAuth: true, timeoutMs: 2000 },
+        )
+
+        if (response?.success && response?.transcript) {
+          textToInsert = response.transcript
+          console.log(`⚡ [itoSessionManager] LLM light adjusted: "${rawTranscript.slice(0, 50)}..." → "${textToInsert.slice(0, 50)}..."`)
+        } else if (response?.isTimeout) {
+          console.warn('[itoSessionManager] LLM light timed out (2s), using raw transcript')
+        } else {
+          console.warn('[itoSessionManager] LLM light failed, using raw transcript:', response?.error)
+        }
+      } catch (error) {
+        console.error('[itoSessionManager] LLM light error, falling back to raw:', error)
+      }
+
+      // Apply dictionary replacements (AFTER LLM, same as before)
       const ctx = this.sonioxContext
       if (ctx?.replacements && ctx.replacements.length > 0) {
         textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)

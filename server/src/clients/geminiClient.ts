@@ -118,6 +118,7 @@ class GeminiClient implements LlmProvider {
             options?.prompt ||
             'Adjust and improve this transcript for clarity and accuracy.',
           temperature: options?.temperature ?? 0.1,
+          ...(options?.max_tokens && { maxOutputTokens: options.max_tokens }),
         },
       })
 

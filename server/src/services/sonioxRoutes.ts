@@ -5,6 +5,7 @@ import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults.js'
 import { ItoMode } from '../generated/ito_pb.js'
 import { getPromptForMode, createUserPromptWithContext } from './ito/helpers.js'
 import { getTranslationBasePrompt, getTranslationTonePrompt, getLanguageNameFromCode } from './ito/translationHelpers.js'
+import { TRANSCRIBE_LIGHT_PROMPT } from './ito/constants.js'
 import { applyReplacements, filterLeakedContext } from './ito/llmUtils.js'
 import { guardLanguage, detectTextLanguage } from './ito/languageGuard.js'
 import type { ItoContext } from './ito/types.js'
@@ -276,6 +277,58 @@ export const registerSonioxRoutes = async (
       })
     } catch (error: any) {
       fastify.log.error({ err: error }, 'Failed to adjust transcript')
+      reply.code(500).send({
+        success: false,
+        error: error?.message || 'Failed to adjust transcript',
+      })
+    }
+  })
+
+  fastify.post('/adjust-transcript-light', async (request, reply) => {
+    try {
+      const user = (request as any).user as SupabaseJwtPayload | undefined
+      if (requireAuth && !user?.sub) {
+        reply.code(401).send({ success: false, error: 'Unauthorized' })
+        return
+      }
+
+      const body = request.body as {
+        transcript: string
+        llmSettings?: { llmProvider?: string; llmModel?: string }
+      }
+      if (!body?.transcript || typeof body.transcript !== 'string') {
+        reply.code(400).send({ success: false, error: 'Missing transcript field' })
+        return
+      }
+
+      const trimmedTranscript = body.transcript.trim()
+      if (trimmedTranscript.length < 2) {
+        reply.send({ success: true, transcript: trimmedTranscript })
+        return
+      }
+
+      const llmProviderName = body.llmSettings?.llmProvider || DEFAULT_ADVANCED_SETTINGS.llmProvider
+      const llmModel = body.llmSettings?.llmModel || DEFAULT_ADVANCED_SETTINGS.llmModel
+      const llmProvider = getLlmProvider(llmProviderName)
+
+      const userPrompt = trimmedTranscript
+
+      const startTime = Date.now()
+      const adjustedTranscript = await llmProvider.adjustTranscript(userPrompt, {
+        temperature: 0.1,
+        model: llmModel,
+        prompt: TRANSCRIBE_LIGHT_PROMPT,
+        max_tokens: Math.max(256, trimmedTranscript.length * 3),
+      })
+      const llmDuration = Date.now() - startTime
+      console.log(`⚡ [adjust-transcript-light] LLM completed in ${llmDuration}ms (provider=${llmProviderName}, model=${llmModel})`)
+
+      reply.send({
+        success: true,
+        transcript: adjustedTranscript.trim(),
+      })
+    } catch (error: any) {
+      fastify.log.error({ err: error }, 'Failed to adjust transcript (light)')
       reply.code(500).send({
         success: false,
         error: error?.message || 'Failed to adjust transcript',
