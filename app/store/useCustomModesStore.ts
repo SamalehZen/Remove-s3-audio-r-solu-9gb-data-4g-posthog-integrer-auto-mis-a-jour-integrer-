@@ -93,7 +93,9 @@ export const useCustomModesStore = create<CustomModesState>((set, _get) => ({
 
   updateMode: async data => {
     try {
-      const mode = await window.api.customModes.upsert(data)
+      const current = _get().modes.find(m => m.id === data.id)
+      const merged = current ? { ...current, ...data } : data
+      const mode = await window.api.customModes.upsert(merged)
       set(s => ({ modes: s.modes.map(m => (m.id === mode.id ? mode : m)) }))
     } catch (e) {
       console.error('Failed to update mode:', e)

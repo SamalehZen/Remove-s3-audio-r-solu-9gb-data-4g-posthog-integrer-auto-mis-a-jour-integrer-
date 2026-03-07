@@ -92,7 +92,7 @@ export function ModeCard({ mode }: Props) {
     setLocalName(value)
     clearTimeout(nameTimerRef.current)
     nameTimerRef.current = setTimeout(() => {
-      updateMode({ ...mode, name: value })
+      updateMode({ id: mode.id, name: value })
     }, 500)
   }
 
@@ -100,17 +100,17 @@ export function ModeCard({ mode }: Props) {
     setLocalPrompt(value)
     clearTimeout(promptTimerRef.current)
     promptTimerRef.current = setTimeout(() => {
-      updateMode({ ...mode, promptTemplate: value })
+      updateMode({ id: mode.id, promptTemplate: value })
     }, 500)
   }
 
   const handlePresetChange = (presetType: string) => {
     const preset = PRESET_OPTIONS.find(p => p.value === presetType)
-    updateMode({ ...mode, presetType, itoMode: preset?.itoMode ?? 0 })
+    updateMode({ id: mode.id, presetType, itoMode: preset?.itoMode ?? 0 })
   }
 
   const handleLanguageChange = (language: string) => {
-    updateMode({ ...mode, language })
+    updateMode({ id: mode.id, language })
   }
 
   return (
