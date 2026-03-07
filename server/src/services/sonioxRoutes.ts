@@ -320,17 +320,37 @@ export const registerSonioxRoutes = async (
       const llmModel = body.llmSettings?.llmModel || DEFAULT_ADVANCED_SETTINGS.llmModel
       const llmProvider = getLlmProvider(llmProviderName)
 
-      const userPrompt = trimmedTranscript
+      const LLM_SERVER_TIMEOUT_MS = 4500
 
+      const userPrompt = trimmedTranscript
       const startTime = Date.now()
-      const adjustedTranscript = await llmProvider.adjustTranscript(userPrompt, {
-        temperature: 0.1,
-        model: llmModel,
-        prompt: TRANSCRIBE_LIGHT_PROMPT,
-        max_tokens: Math.max(256, trimmedTranscript.length * 3),
-      })
+
+      let timedOut = false
+      let timeoutHandle: ReturnType<typeof setTimeout>
+
+      const adjustedTranscript = await Promise.race([
+        llmProvider.adjustTranscript(userPrompt, {
+          temperature: 0.1,
+          model: llmModel,
+          prompt: TRANSCRIBE_LIGHT_PROMPT,
+          max_tokens: Math.max(256, trimmedTranscript.length * 3),
+        }),
+        new Promise<string>((resolve) => {
+          timeoutHandle = setTimeout(() => {
+            timedOut = true
+            resolve(trimmedTranscript)
+          }, LLM_SERVER_TIMEOUT_MS)
+        }),
+      ])
+
+      clearTimeout(timeoutHandle!)
       const llmDuration = Date.now() - startTime
-      console.log(`⚡ [adjust-transcript-light] LLM completed in ${llmDuration}ms (provider=${llmProviderName}, model=${llmModel})`)
+
+      if (timedOut) {
+        console.warn(`⚡ [adjust-transcript-light] LLM server timeout after ${LLM_SERVER_TIMEOUT_MS}ms, returning raw transcript`)
+      } else {
+        console.log(`⚡ [adjust-transcript-light] LLM completed in ${llmDuration}ms (provider=${llmProviderName}, model=${llmModel})`)
+      }
 
       reply.send({
         success: true,
@@ -396,26 +416,47 @@ export const registerSonioxRoutes = async (
           return
         }
 
+        const VISION_SERVER_TIMEOUT_MS = 4500
         const startTime = Date.now()
+
+        let timedOut = false
+        let timeoutHandle: ReturnType<typeof setTimeout>
+
         try {
-          const visionResult = await geminiClient.analyzeScreenContext(
-            body.screenshotBase64,
-            trimmedTranscript,
-            systemPrompt,
-            {
-              temperature: 0.2,
-              model: 'gemini-3.1-flash-lite-preview',
-              max_tokens: 1024,
-              mimeType: body.screenshotMimeType || 'image/jpeg',
-            },
-          )
+          const visionResult = await Promise.race([
+            geminiClient.analyzeScreenContext(
+              body.screenshotBase64,
+              trimmedTranscript,
+              systemPrompt,
+              {
+                temperature: 0.2,
+                model: 'gemini-2.5-flash-lite',
+                max_tokens: 1024,
+                mimeType: body.screenshotMimeType || 'image/jpeg',
+              },
+            ),
+            new Promise<null>((resolve) => {
+              timeoutHandle = setTimeout(() => {
+                timedOut = true
+                resolve(null)
+              }, VISION_SERVER_TIMEOUT_MS)
+            }),
+          ])
 
+          clearTimeout(timeoutHandle!)
           const duration = Date.now() - startTime
-          console.log(`\u26A1 [adjust-context-light] Vision completed in ${duration}ms`)
 
-          reply.send({ success: true, transcript: sanitizeVisionOutput(visionResult) })
+          if (timedOut) {
+            console.warn(`\u26A1 [adjust-context-light] Vision server timeout after ${VISION_SERVER_TIMEOUT_MS}ms, returning raw transcript`)
+            reply.send({ success: true, transcript: trimmedTranscript })
+            return
+          }
+
+          console.log(`\u26A1 [adjust-context-light] Vision completed in ${duration}ms`)
+          reply.send({ success: true, transcript: sanitizeVisionOutput(visionResult!) })
           return
         } catch (visionError: any) {
+          clearTimeout(timeoutHandle!)
           const duration = Date.now() - startTime
           console.error(`[adjust-context-light] Vision failed in ${duration}ms:`, visionError?.message)
 

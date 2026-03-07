@@ -581,19 +581,29 @@ export class ItoSessionManager {
         const response = await itoHttpClient.post(
           '/adjust-transcript-light',
           requestBody,
-          { requireAuth: true, timeoutMs: 2000 },
+          { requireAuth: true, timeoutMs: 5000 },
         )
 
         if (response?.success && response?.transcript) {
           textToInsert = response.transcript
           console.log(`⚡ [itoSessionManager] LLM light adjusted: "${rawTranscript.slice(0, 50)}..." → "${textToInsert.slice(0, 50)}..."`)
         } else if (response?.isTimeout) {
-          console.warn('[itoSessionManager] LLM light timed out (2s), using raw transcript')
+          console.warn('[itoSessionManager] LLM light timed out (5s), using raw transcript')
         } else {
           console.warn('[itoSessionManager] LLM light failed, using raw transcript:', response?.error)
         }
       } catch (error) {
         console.error('[itoSessionManager] LLM light error, falling back to raw:', error)
+      }
+
+      // ── Attend le contexte si pas encore prêt ──
+      if (this.contextGatherPromise) {
+        try {
+          await this.contextGatherPromise
+        } catch {
+          // already logged at call site
+        }
+        this.contextGatherPromise = null
       }
 
       // Apply dictionary replacements (AFTER LLM, same as before)
