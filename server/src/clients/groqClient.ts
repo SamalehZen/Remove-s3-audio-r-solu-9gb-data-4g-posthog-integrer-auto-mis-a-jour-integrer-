@@ -78,6 +78,7 @@ class GroqClient implements LlmProvider {
         ],
         model,
         temperature,
+        ...(options?.max_tokens && { max_tokens: options.max_tokens }),
       })
 
       // Return a space to enable emptying the document

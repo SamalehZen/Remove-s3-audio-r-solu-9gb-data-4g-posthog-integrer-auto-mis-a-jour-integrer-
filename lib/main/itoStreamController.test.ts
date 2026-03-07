@@ -114,6 +114,7 @@ const mockContextGrabber = {
         macosAccessibilityContextEnabled: true,
       },
       screenCaptureBase64: null,
+      screenCaptureMimeType: null,
       screenThumbnailBase64: null,
       contextSource: null,
     }),

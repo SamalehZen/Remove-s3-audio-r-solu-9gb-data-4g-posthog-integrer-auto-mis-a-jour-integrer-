@@ -118,6 +118,7 @@ class GeminiClient implements LlmProvider {
             options?.prompt ||
             'Adjust and improve this transcript for clarity and accuracy.',
           temperature: options?.temperature ?? 0.1,
+          ...(options?.max_tokens && { maxOutputTokens: options.max_tokens }),
         },
       })
 
@@ -132,7 +133,7 @@ class GeminiClient implements LlmProvider {
     screenshotBase64: string,
     voiceCommand: string,
     systemPrompt: string,
-    options?: IntentTranscriptionOptions,
+    options?: IntentTranscriptionOptions & { mimeType?: string },
   ): Promise<string> {
     if (!this.isAvailable) {
       throw new ClientUnavailableError(ClientProvider.GEMINI)
@@ -144,15 +145,17 @@ class GeminiClient implements LlmProvider {
       )
     }
 
+    const mimeType = options?.mimeType || 'image/png'
+
     console.log(
-      `[GeminiClient] analyzeScreenContext called - screenshot: ${Math.round(screenshotBase64.length / 1024)}KB, command: "${voiceCommand}", model: ${options?.model || 'gemini-2.5-flash'}`,
+      `[GeminiClient] analyzeScreenContext called - screenshot: ${Math.round(screenshotBase64.length / 1024)}KB (${mimeType}), command: "${voiceCommand}", model: ${options?.model || 'gemini-2.5-flash'}`,
     )
 
     try {
       const parts: Array<{ inlineData?: { mimeType: string; data: string }; text?: string }> = [
         {
           inlineData: {
-            mimeType: 'image/png',
+            mimeType,
             data: screenshotBase64,
           },
         },
@@ -172,6 +175,7 @@ class GeminiClient implements LlmProvider {
         config: {
           systemInstruction: systemPrompt,
           temperature: options?.temperature ?? 0.3,
+          ...(options?.max_tokens && { maxOutputTokens: options.max_tokens }),
         },
       })
 

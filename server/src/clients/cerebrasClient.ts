@@ -72,6 +72,7 @@ class CerebrasClient implements LlmProvider {
         ],
         model,
         temperature,
+        ...(options?.max_tokens && { max_tokens: options.max_tokens }),
       })
 
       return (completion.choices as any)[0]?.message?.content?.trim() || ' '

@@ -567,6 +567,46 @@ export class ItoSessionManager {
 
       let textToInsert = rawTranscript
 
+      // ── LLM light post-processing (Flow features) ──
+      try {
+        const advSettings = getAdvancedSettings()
+        const requestBody = {
+          transcript: rawTranscript,
+          llmSettings: {
+            llmProvider: advSettings.llm?.llmProvider || undefined,
+            llmModel: advSettings.llm?.llmModel || undefined,
+          },
+        }
+
+        const response = await itoHttpClient.post(
+          '/adjust-transcript-light',
+          requestBody,
+          { requireAuth: true, timeoutMs: 5000 },
+        )
+
+        if (response?.success && response?.transcript) {
+          textToInsert = response.transcript
+          console.log(`⚡ [itoSessionManager] LLM light adjusted: "${rawTranscript.slice(0, 50)}..." → "${textToInsert.slice(0, 50)}..."`)
+        } else if (response?.isTimeout) {
+          console.warn('[itoSessionManager] LLM light timed out (5s), using raw transcript')
+        } else {
+          console.warn('[itoSessionManager] LLM light failed, using raw transcript:', response?.error)
+        }
+      } catch (error) {
+        console.error('[itoSessionManager] LLM light error, falling back to raw:', error)
+      }
+
+      // ── Attend le contexte si pas encore prêt ──
+      if (this.contextGatherPromise) {
+        try {
+          await this.contextGatherPromise
+        } catch {
+          // already logged at call site
+        }
+        this.contextGatherPromise = null
+      }
+
+      // Apply dictionary replacements (AFTER LLM, same as before)
       const ctx = this.sonioxContext
       if (ctx?.replacements && ctx.replacements.length > 0) {
         textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
@@ -635,6 +675,66 @@ export class ItoSessionManager {
         // already logged at call site
       }
       this.contextGatherPromise = null
+    }
+
+    if (mode === ItoMode.CONTEXT_AWARENESS && this.sonioxContext?.screenCaptureBase64) {
+      try {
+        const ctx = this.sonioxContext
+
+        const requestBody: Record<string, any> = {
+          transcript: rawTranscript,
+          screenshotBase64: ctx.screenCaptureBase64,
+          screenshotMimeType: ctx.screenCaptureMimeType || 'image/jpeg',
+          context: {
+            windowTitle: ctx?.windowTitle || undefined,
+            appName: ctx?.appName || undefined,
+            browserUrl: ctx?.browserUrl || undefined,
+            userDetailsContext: ctx?.userDetails
+              ? this.buildUserDetailsContextString(ctx.userDetails)
+              : undefined,
+          },
+        }
+
+        const response = await itoHttpClient.post(
+          '/adjust-context-light',
+          requestBody,
+          { requireAuth: true, timeoutMs: 5000 },
+        )
+
+        if (response?.success && response?.transcript) {
+          let textToInsert = response.transcript
+
+          if (ctx?.replacements && ctx.replacements.length > 0) {
+            textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+          }
+
+          const { grammarServiceEnabled } = getAdvancedSettings()
+          if (grammarServiceEnabled) {
+            textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+            textToInsert = this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+          }
+
+          this.textInserter.insertText(textToInsert)
+        } else {
+          console.warn('[itoSessionManager] Context light failed, inserting raw:', response?.error)
+          this.textInserter.insertText(rawTranscript)
+        }
+      } catch (error) {
+        console.error('[itoSessionManager] Context light error, falling back to raw:', error)
+        this.textInserter.insertText(rawTranscript)
+      } finally {
+        recordingStateNotifier.notifyProcessingStopped()
+      }
+
+      try {
+        await interactionManager.createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+      } catch (error) {
+        console.error('[itoSessionManager] Failed to create interaction:', error)
+      }
+
+      allowAppNap()
+      this.cleanupSonioxState()
+      return
     }
 
     try {
