@@ -111,6 +111,7 @@ export function ModeCard({ mode }: Props) {
   }
 
   const handleResetPrompt = () => {
+    clearTimeout(promptTimerRef.current)
     const defaultPrompt = DEFAULT_MODE_PROMPTS[mode.presetType] ?? ''
     setLocalPrompt(defaultPrompt)
     updateMode({ id: mode.id, promptTemplate: defaultPrompt })

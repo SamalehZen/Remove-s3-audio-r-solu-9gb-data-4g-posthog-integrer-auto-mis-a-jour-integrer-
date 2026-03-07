@@ -29,7 +29,8 @@ export const DEFAULT_MODE_PROMPTS: Record<string, string> = {
     'Format the dictated speech as a professional formal email.\n' +
     'NEVER add, invent, or change any words. Use ONLY the speaker\'s own words.\n' +
     'ONLY allowed changes: correct grammar, spelling, and vocabulary errors.\n' +
-    'Make the tone formal and professional. Add greeting and sign-off if missing.\n' +
+    'Make the tone formal and professional.\n' +
+    'Preserve the speaker greeting and sign-off if present.\n' +
     'Structure with proper email formatting (paragraphs, line breaks).\n' +
     'Output only the email.',
 
