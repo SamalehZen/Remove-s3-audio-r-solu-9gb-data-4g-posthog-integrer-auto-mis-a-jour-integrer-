@@ -437,8 +437,15 @@ export class TranscribeStreamV2Handler {
 
     let systemPrompt: string
     if (hasTonePrompt) {
-      systemPrompt = windowContext.tonePrompt
-      console.log(`[TranscribeStreamV2] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
+      if (mode === ItoMode.TRANSCRIBE) {
+        // TRANSCRIBE mode: always combine base guardrails + custom style instructions
+        // This prevents the LLM from acting as a chatbot while still applying user style
+        systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+        console.log(`[TranscribeStreamV2] TRANSCRIBE mode: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
+      } else {
+        systemPrompt = windowContext.tonePrompt
+        console.log(`[TranscribeStreamV2] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
+      }
     } else {
       systemPrompt = basePrompt
     }
