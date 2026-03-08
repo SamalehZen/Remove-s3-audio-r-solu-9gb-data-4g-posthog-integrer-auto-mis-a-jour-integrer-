@@ -437,15 +437,10 @@ export class TranscribeStreamV2Handler {
 
     let systemPrompt: string
     if (hasTonePrompt) {
-      if (mode === ItoMode.TRANSCRIBE) {
-        // TRANSCRIBE mode: always combine base guardrails + custom style instructions
-        // This prevents the LLM from acting as a chatbot while still applying user style
-        systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
-        console.log(`[TranscribeStreamV2] TRANSCRIBE mode: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
-      } else {
-        systemPrompt = windowContext.tonePrompt
-        console.log(`[TranscribeStreamV2] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
-      }
+      // Always combine base guardrails + custom style instructions for ALL modes
+      // This prevents the LLM from acting as a chatbot while still applying user style
+      systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+      console.log(`[TranscribeStreamV2] mode=${mode}: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
     } else {
       systemPrompt = basePrompt
     }
@@ -527,7 +522,7 @@ export class TranscribeStreamV2Handler {
     if (mode === ItoMode.CONTEXT_AWARENESS) {
       const editFallback = getPromptForMode(ItoMode.EDIT, advancedSettings)
       effectiveSystemPrompt = hasTonePrompt
-        ? windowContext.tonePrompt
+        ? `${editFallback}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
         : editFallback
     } else {
       effectiveSystemPrompt = systemPrompt

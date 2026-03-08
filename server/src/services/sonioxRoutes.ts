@@ -4,7 +4,7 @@ import { getLlmProvider } from '../clients/providerUtils.js'
 import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults.js'
 import { ItoMode } from '../generated/ito_pb.js'
 import { getPromptForMode, createUserPromptWithContext } from './ito/helpers.js'
-import { getTranslationBasePrompt, getTranslationTonePrompt, getLanguageNameFromCode } from './ito/translationHelpers.js'
+import { getTranslationBasePrompt, getLanguageNameFromCode } from './ito/translationHelpers.js'
 import { applyReplacements, filterLeakedContext } from './ito/llmUtils.js'
 import { guardLanguage, detectTextLanguage } from './ito/languageGuard.js'
 import type { ItoContext } from './ito/types.js'
@@ -128,18 +128,15 @@ export const registerSonioxRoutes = async (
       let systemPrompt: string
       if (mode === ItoMode.TRANSLATE) {
         const targetLang = body.targetLanguage || 'en'
+        const translationBase = getTranslationBasePrompt(basePrompt, targetLang)
         systemPrompt = hasTonePrompt
-          ? getTranslationTonePrompt(windowContext.tonePrompt, targetLang)
-          : getTranslationBasePrompt(basePrompt, targetLang)
+          ? `${translationBase}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+          : translationBase
       } else if (hasTonePrompt) {
-        if (mode === ItoMode.TRANSCRIBE) {
-          // TRANSCRIBE mode: always combine base guardrails + custom style instructions
-          systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
-          console.log(`[adjust-transcript] TRANSCRIBE mode: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
-        } else {
-          systemPrompt = windowContext.tonePrompt
-          console.log(`[adjust-transcript] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
-        }
+        // Always combine base guardrails + custom style instructions for ALL modes
+        // This prevents the LLM from acting as a chatbot while still applying user style
+        systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+        console.log(`[adjust-transcript] mode=${body.mode}: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
       } else {
         systemPrompt = basePrompt
       }
@@ -169,7 +166,7 @@ export const registerSonioxRoutes = async (
 
           const caBasePrompt = getPromptForMode(mode, advancedSettings)
           const baseSystemPrompt = hasTonePrompt
-            ? windowContext.tonePrompt
+            ? `${caBasePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
             : caBasePrompt
 
           const enrichedSystemPrompt = contextParts
@@ -225,7 +222,7 @@ export const registerSonioxRoutes = async (
 
         const editFallback = getPromptForMode(ItoMode.EDIT, advancedSettings)
         systemPrompt = hasTonePrompt
-          ? windowContext.tonePrompt
+          ? `${editFallback}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
           : editFallback
         console.log(`[adjust-transcript] Vision fallback to EDIT mode, hasTone=${hasTonePrompt}`)
       }

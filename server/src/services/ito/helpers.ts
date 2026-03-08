@@ -219,7 +219,7 @@ export function getPromptForMode(
   }
 
   if (tonePrompt && tonePrompt.trim()) {
-    return tonePrompt
+    return `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${tonePrompt}`
   }
 
   return basePrompt
