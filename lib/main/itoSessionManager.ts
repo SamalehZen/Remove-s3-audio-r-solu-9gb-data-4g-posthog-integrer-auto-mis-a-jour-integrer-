@@ -713,6 +713,10 @@ export class ItoSessionManager {
           if (lightResponse?.success && lightResponse?.transcript) {
             let textToInsert = lightResponse.transcript
 
+            if (ctx?.replacements && ctx.replacements.length > 0) {
+              textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+            }
+
             const { grammarServiceEnabled } = getAdvancedSettings()
             if (grammarServiceEnabled) {
               textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)

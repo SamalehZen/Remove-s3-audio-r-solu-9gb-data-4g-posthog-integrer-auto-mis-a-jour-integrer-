@@ -388,6 +388,7 @@ export class TranscribeStreamV2Handler {
         noSpeechThreshold,
         DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold,
       ),
+      visionModel: DEFAULT_ADVANCED_SETTINGS.visionModel,
     }
   }
 
@@ -490,7 +491,7 @@ export class TranscribeStreamV2Handler {
                   enrichedSystemPrompt,
                   {
                     temperature: advancedSettings.llmTemperature,
-                    model: DEFAULT_ADVANCED_SETTINGS.visionModel || 'gemini-3.1-flash-lite-preview',
+                    model: advancedSettings.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
                     mimeType: detectedMimeType,
                     maxOutputTokens: 1024,
                   },

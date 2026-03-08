@@ -21,9 +21,10 @@ export async function captureScreen(
   options?: ScreenCaptureOptions,
 ): Promise<ScreenCaptureResult | null> {
   try {
+    const requestedMaxWidth = options?.maxWidth ?? 1280
     const sources = await desktopCapturer.getSources({
       types: mode === 'active_window' ? ['window', 'screen'] : ['screen'],
-      thumbnailSize: getThumbnailSize(),
+      thumbnailSize: getThumbnailSize(requestedMaxWidth),
     })
 
     if (!sources || sources.length === 0) {
@@ -39,13 +40,12 @@ export async function captureScreen(
       return null
     }
 
-    const maxWidth = options?.maxWidth ?? 1280
     const format = options?.format ?? 'png'
     const quality = options?.quality ?? 80
 
     const resized =
-      thumbnail.getSize().width > maxWidth
-        ? thumbnail.resize({ width: maxWidth })
+      thumbnail.getSize().width > requestedMaxWidth
+        ? thumbnail.resize({ width: requestedMaxWidth })
         : thumbnail
 
     const imageBuffer = format === 'jpeg'
@@ -74,10 +74,10 @@ export async function captureScreen(
   }
 }
 
-function getThumbnailSize(): { width: number; height: number } {
+function getThumbnailSize(maxWidth = 1280): { width: number; height: number } {
   const primaryDisplay = screen.getPrimaryDisplay()
   const { width, height } = primaryDisplay.size
-  const scale = Math.min(1, 1280 / width)
+  const scale = Math.min(1, maxWidth / width)
   return {
     width: Math.round(width * scale),
     height: Math.round(height * scale),

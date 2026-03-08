@@ -154,6 +154,7 @@ export async function createAppTray(): Promise<void> {
   const trayImage = buildTrayImage()
   if (trayImage.isEmpty()) {
     console.error('[Tray] Cannot create tray with empty icon, will retry on next health check')
+    startTrayHealthCheck()
     return
   }
 
