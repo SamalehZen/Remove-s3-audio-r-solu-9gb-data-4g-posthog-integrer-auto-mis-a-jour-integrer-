@@ -132,8 +132,14 @@ export const registerSonioxRoutes = async (
           ? getTranslationTonePrompt(windowContext.tonePrompt, targetLang)
           : getTranslationBasePrompt(basePrompt, targetLang)
       } else if (hasTonePrompt) {
-        systemPrompt = windowContext.tonePrompt
-        console.log(`[adjust-transcript] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
+        if (mode === ItoMode.TRANSCRIBE) {
+          // TRANSCRIBE mode: always combine base guardrails + custom style instructions
+          systemPrompt = `${basePrompt}\n\nSTYLE INSTRUCTIONS:\n${windowContext.tonePrompt}`
+          console.log(`[adjust-transcript] TRANSCRIBE mode: combined base prompt (${basePrompt.length} chars) + custom style (${windowContext.tonePrompt.length} chars)`)
+        } else {
+          systemPrompt = windowContext.tonePrompt
+          console.log(`[adjust-transcript] Using custom prompt (${systemPrompt.length} chars), base prompt skipped`)
+        }
       } else {
         systemPrompt = basePrompt
       }
