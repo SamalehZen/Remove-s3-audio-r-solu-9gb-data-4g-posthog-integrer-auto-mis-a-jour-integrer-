@@ -130,6 +130,7 @@ EXEMPLE:
 
 NETTOYAGE:
 - Supprimer les hésitations: "euh", "hum", "hein", "genre", "voilà", "quoi", "vous savez"
+- "en fait" → supprimer UNIQUEMENT quand c'est une hésitation isolée, PAS quand il introduit une correction (ex: "à 2 heures en fait à 3" → garder pour appliquer la correction)
 - Supprimer les répétitions identiques: "je je veux" → "je veux"
 - Auto-corrections: "lundi non mardi" → "mardi"
 
