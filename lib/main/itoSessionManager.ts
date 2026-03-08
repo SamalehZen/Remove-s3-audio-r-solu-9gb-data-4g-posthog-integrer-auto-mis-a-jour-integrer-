@@ -684,6 +684,64 @@ export class ItoSessionManager {
       const { llm } = getAdvancedSettings()
       const ctx = this.sonioxContext
 
+      if (mode === ItoMode.CONTEXT_AWARENESS && ctx?.screenCaptureBase64) {
+        const lightBody: Record<string, any> = {
+          transcript: rawTranscript,
+          screenshotBase64: ctx.screenCaptureBase64,
+          screenshotMimeType: ctx.screenCaptureMimeType || 'image/jpeg',
+          llmSettings: {
+            llmTemperature: llm?.llmTemperature ?? undefined,
+            visionModel: llm?.visionModel || undefined,
+          },
+          context: {
+            windowTitle: ctx.windowTitle || '',
+            appName: ctx.appName || '',
+            browserUrl: ctx.browserUrl || undefined,
+            tonePrompt: ctx.tone?.promptTemplate || undefined,
+            userDetailsContext: ctx.userDetails
+              ? this.buildUserDetailsContextString(ctx.userDetails)
+              : undefined,
+          },
+        }
+
+        try {
+          const lightResponse = await itoHttpClient.post(
+            '/adjust-context-light',
+            lightBody,
+            { requireAuth: true, timeoutMs: 5000 },
+          )
+          if (lightResponse?.success && lightResponse?.transcript) {
+            let textToInsert = lightResponse.transcript
+
+            const { grammarServiceEnabled } = getAdvancedSettings()
+            if (grammarServiceEnabled) {
+              textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+              textToInsert =
+                this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+            }
+
+            this.textInserter.insertText(textToInsert)
+
+            try {
+              await interactionManager.createInteraction(
+                rawTranscript,
+                Buffer.alloc(0),
+                16000,
+                undefined,
+              )
+            } catch (error) {
+              console.error('[itoSessionManager] Failed to create interaction:', error)
+            }
+
+            allowAppNap()
+            this.cleanupSonioxState()
+            return
+          }
+        } catch (lightError) {
+          console.error('[itoSessionManager] adjust-context-light failed, falling back to adjust-transcript:', lightError)
+        }
+      }
+
       const requestBody: Record<string, any> = {
         transcript: rawTranscript,
         mode:

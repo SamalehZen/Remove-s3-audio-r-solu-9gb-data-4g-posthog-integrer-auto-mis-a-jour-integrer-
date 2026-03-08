@@ -32,7 +32,7 @@ const llmPromptLengthLimit = 1500
 const FAST_DEFAULT_MODELS_BY_PROVIDER: Record<string, string> = {
   cerebras: 'llama-3.3-70b',
   groq: 'llama-3.1-8b-instant',
-  gemini: 'gemini-2.5-flash-lite',
+  gemini: 'gemini-3.1-flash-lite-preview',
 }
 
 const VISION_MODEL_OPTIONS = [
@@ -51,7 +51,7 @@ const DEFAULT_MODELS_BY_PROVIDER: Record<
   },
   gemini: {
     asrModel: 'gemini-2.5-flash-lite',
-    llmModel: 'gemini-2.5-flash-lite',
+    llmModel: 'gemini-3.1-flash-lite-preview',
   },
   cerebras: {
     llmModel: 'llama-3.3-70b',

@@ -2,15 +2,23 @@ import { desktopCapturer, screen } from 'electron'
 
 export type CaptureMode = 'fullscreen' | 'active_window'
 
+export interface ScreenCaptureOptions {
+  format?: 'png' | 'jpeg'
+  quality?: number
+  maxWidth?: number
+}
+
 export interface ScreenCaptureResult {
   base64: string
   thumbnailBase64: string
   width: number
   height: number
+  mimeType: string
 }
 
 export async function captureScreen(
   mode: CaptureMode = 'fullscreen',
+  options?: ScreenCaptureOptions,
 ): Promise<ScreenCaptureResult | null> {
   try {
     const sources = await desktopCapturer.getSources({
@@ -31,16 +39,23 @@ export async function captureScreen(
       return null
     }
 
+    const maxWidth = options?.maxWidth ?? 1280
+    const format = options?.format ?? 'png'
+    const quality = options?.quality ?? 80
+
     const resized =
-      thumbnail.getSize().width > 1280
-        ? thumbnail.resize({ width: 1280 })
+      thumbnail.getSize().width > maxWidth
+        ? thumbnail.resize({ width: maxWidth })
         : thumbnail
 
-    const pngBuffer = resized.toPNG()
-    const base64 = pngBuffer.toString('base64')
+    const imageBuffer = format === 'jpeg'
+      ? resized.toJPEG(quality)
+      : resized.toPNG()
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
+    const base64 = imageBuffer.toString('base64')
 
     console.log(
-      `[screenCapture] Captured ${mode}: ${resized.getSize().width}x${resized.getSize().height}, ${Math.round(pngBuffer.length / 1024)}KB`,
+      `[screenCapture] Captured ${mode} (${format}): ${resized.getSize().width}x${resized.getSize().height}, ${Math.round(imageBuffer.length / 1024)}KB`,
     )
 
     const thumbImg = resized.resize({ width: 120 })
@@ -51,6 +66,7 @@ export async function captureScreen(
       thumbnailBase64,
       width: resized.getSize().width,
       height: resized.getSize().height,
+      mimeType,
     }
   } catch (error) {
     console.error('[screenCapture] Failed to capture screen:', error)

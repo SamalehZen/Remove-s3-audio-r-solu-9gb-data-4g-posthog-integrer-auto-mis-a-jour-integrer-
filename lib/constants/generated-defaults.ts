@@ -12,7 +12,7 @@ export const DEFAULT_ADVANCED_SETTINGS = {
 
   // LLM (Large Language Model) settings
   llmProvider: 'gemini',
-  llmModel: 'gemini-2.5-flash-lite',
+  llmModel: 'gemini-3.1-flash-lite-preview',
   llmTemperature: 0.1,
 
   // Prompt settings

@@ -479,15 +479,23 @@ export class TranscribeStreamV2Handler {
 
             const visionResult = await serverTimingCollector.timeAsync(
               ServerTimingEventName.LLM_ADJUSTMENT,
-              () => geminiClient.analyzeScreenContext(
-                windowContext.screenCaptureBase64,
-                transcript,
-                enrichedSystemPrompt,
-                {
-                  temperature: advancedSettings.llmTemperature,
-                  model: DEFAULT_ADVANCED_SETTINGS.visionModel || 'gemini-3.1-flash-lite-preview',
-                },
-              ),
+              () => {
+                const screenshotData = windowContext.screenCaptureBase64
+                const detectedMimeType = screenshotData.startsWith('/9j/')
+                  ? 'image/jpeg'
+                  : 'image/png'
+                return geminiClient.analyzeScreenContext(
+                  screenshotData,
+                  transcript,
+                  enrichedSystemPrompt,
+                  {
+                    temperature: advancedSettings.llmTemperature,
+                    model: DEFAULT_ADVANCED_SETTINGS.visionModel || 'gemini-3.1-flash-lite-preview',
+                    mimeType: detectedMimeType,
+                    maxOutputTokens: 1024,
+                  },
+                )
+              },
             )
 
             console.log(
