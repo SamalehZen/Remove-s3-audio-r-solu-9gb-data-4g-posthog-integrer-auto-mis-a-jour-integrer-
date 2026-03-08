@@ -134,11 +134,13 @@ const llmSettingsConfig: LlmSettingConfig[] = [
   },
 ]
 
-function formatDisplayValue(value: string | number | null): string {
+function formatDisplayValue(value: string | number | boolean | null): string {
   if (value === null) {
     return ''
   }
-  // If its a number then format it to 2 decimal places
+  if (typeof value === 'boolean') {
+    return String(value)
+  }
   if (typeof value === 'number') {
     return value.toFixed(2)
   }
@@ -147,7 +149,7 @@ function formatDisplayValue(value: string | number | null): string {
 
 interface SettingInputProps {
   config: LlmSettingConfig
-  value: string | number | null
+  value: string | number | boolean | null
   onChange: (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     config: LlmSettingConfig,
@@ -242,7 +244,7 @@ export default function AdvancedSettingsContent() {
 
   // Helper to resolve null to actual default value for display
   const getDisplayValue = useCallback(
-    (key: keyof LlmSettings): string | number | null => {
+    (key: keyof LlmSettings): string | number | boolean | null => {
       const value = llm[key]
       if (value === null && defaults) {
         return defaults[key] ?? null
