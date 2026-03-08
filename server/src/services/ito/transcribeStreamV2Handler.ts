@@ -388,7 +388,10 @@ export class TranscribeStreamV2Handler {
         noSpeechThreshold,
         DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold,
       ),
-      visionModel: DEFAULT_ADVANCED_SETTINGS.visionModel,
+      visionModel: this.resolveOrDefault(
+        mergedConfig.llmSettings?.visionModel,
+        DEFAULT_ADVANCED_SETTINGS.visionModel,
+      ),
     }
   }
 
