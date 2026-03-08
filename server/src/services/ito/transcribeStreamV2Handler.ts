@@ -485,7 +485,7 @@ export class TranscribeStreamV2Handler {
                 enrichedSystemPrompt,
                 {
                   temperature: advancedSettings.llmTemperature,
-                  model: 'gemini-2.5-flash',
+                  model: DEFAULT_ADVANCED_SETTINGS.visionModel || 'gemini-3.1-flash-lite-preview',
                 },
               ),
             )

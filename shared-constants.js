@@ -117,6 +117,8 @@ SORTIE STRICTE:
   sonioxFastLlmEnabled: false,
   sonioxFastLlmProvider: 'cerebras',
   sonioxFastLlmModel: 'llama-3.3-70b',
+  visionModel: 'gemini-3.1-flash-lite-preview',
+
   sonioxFastPrompt: `Tu reformules une dictée vocale. Garde INTÉGRALEMENT le contenu.
 
 NETTOYAGE:

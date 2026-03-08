@@ -700,6 +700,7 @@ export class ItoSessionManager {
           llmTemperature: llm?.llmTemperature ?? undefined,
           transcriptionPrompt: llm?.transcriptionPrompt || undefined,
           editingPrompt: llm?.editingPrompt || undefined,
+          visionModel: llm?.visionModel || undefined,
         },
       }
 
