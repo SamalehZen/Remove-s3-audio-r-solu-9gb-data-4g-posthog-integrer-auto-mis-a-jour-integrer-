@@ -41,6 +41,9 @@ export const DEFAULT_ADVANCED_SETTINGS = {
   sonioxFastLlmProvider: '${DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmProvider}',
   sonioxFastLlmModel: '${DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmModel}',
   sonioxFastPrompt: \`${DEFAULT_ADVANCED_SETTINGS.sonioxFastPrompt.replace(/`/g, '\\`')}\`,
+
+  // Vision model for CONTEXT_AWARENESS
+  visionModel: '${DEFAULT_ADVANCED_SETTINGS.visionModel}',
 } as const;
 `
 

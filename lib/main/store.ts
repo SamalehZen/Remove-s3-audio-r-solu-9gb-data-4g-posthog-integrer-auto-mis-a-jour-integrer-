@@ -193,6 +193,7 @@ export const defaultValues: AppStore = {
       sonioxFastLlmProvider: null,
       sonioxFastLlmModel: null,
       sonioxFastPrompt: null,
+      visionModel: null,
     },
   },
   openMic: false,

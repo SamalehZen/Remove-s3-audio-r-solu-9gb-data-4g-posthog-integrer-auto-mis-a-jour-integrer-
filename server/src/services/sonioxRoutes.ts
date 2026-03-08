@@ -30,6 +30,7 @@ interface AdjustTranscriptBody {
     llmTemperature?: number
     transcriptionPrompt?: string
     editingPrompt?: string
+    visionModel?: string
   }
   replacements?: Array<{
     fromText: string
@@ -118,6 +119,7 @@ export const registerSonioxRoutes = async (
         transcriptionPrompt: body.llmSettings?.transcriptionPrompt || DEFAULT_ADVANCED_SETTINGS.transcriptionPrompt,
         editingPrompt: body.llmSettings?.editingPrompt || DEFAULT_ADVANCED_SETTINGS.editingPrompt,
         noSpeechThreshold: DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold,
+        visionModel: body.llmSettings?.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
       }
 
       const hasTonePrompt = windowContext.tonePrompt && windowContext.tonePrompt.trim() !== ''
@@ -185,7 +187,7 @@ export const registerSonioxRoutes = async (
                 enrichedSystemPrompt,
                 {
                   temperature: advancedSettings.llmTemperature,
-                  model: 'gemini-2.5-flash',
+                  model: advancedSettings.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
                 },
               )
 

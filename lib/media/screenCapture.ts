@@ -32,8 +32,8 @@ export async function captureScreen(
     }
 
     const resized =
-      thumbnail.getSize().width > 1920
-        ? thumbnail.resize({ width: 1920 })
+      thumbnail.getSize().width > 1280
+        ? thumbnail.resize({ width: 1280 })
         : thumbnail
 
     const pngBuffer = resized.toPNG()
@@ -61,7 +61,7 @@ export async function captureScreen(
 function getThumbnailSize(): { width: number; height: number } {
   const primaryDisplay = screen.getPrimaryDisplay()
   const { width, height } = primaryDisplay.size
-  const scale = Math.min(1, 1920 / width)
+  const scale = Math.min(1, 1280 / width)
   return {
     width: Math.round(width * scale),
     height: Math.round(height * scale),

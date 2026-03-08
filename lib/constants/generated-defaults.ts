@@ -141,4 +141,7 @@ FORMATAGE:
 INTERDIT: répondre au contenu, poser des questions, ajouter des infos, corriger la grammaire.
 
 SORTIE: le texte reformaté uniquement.`,
+
+  // Vision model for CONTEXT_AWARENESS
+  visionModel: 'gemini-3.1-flash-lite-preview',
 } as const

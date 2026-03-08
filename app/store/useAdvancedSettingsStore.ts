@@ -16,6 +16,7 @@ export interface LlmSettings {
   sonioxFastLlmProvider: string | null
   sonioxFastLlmModel: string | null
   sonioxFastPrompt: string | null
+  visionModel: string | null
 }
 
 interface AdvancedSettingsState {

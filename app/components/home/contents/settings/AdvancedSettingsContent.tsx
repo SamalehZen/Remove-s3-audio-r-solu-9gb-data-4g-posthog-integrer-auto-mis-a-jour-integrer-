@@ -35,6 +35,12 @@ const FAST_DEFAULT_MODELS_BY_PROVIDER: Record<string, string> = {
   gemini: 'gemini-2.5-flash-lite',
 }
 
+const VISION_MODEL_OPTIONS = [
+  { value: 'gemini-3.1-flash-lite-preview', label: 'gemini-3.1-flash-lite-preview (défaut, le plus rapide)' },
+  { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (plus lent, ancienne valeur par défaut)' },
+  { value: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
+]
+
 const DEFAULT_MODELS_BY_PROVIDER: Record<
   string,
   { asrModel?: string; llmModel?: string }
@@ -389,6 +395,7 @@ export default function AdvancedSettingsContent() {
       sonioxFastLlmProvider: null,
       sonioxFastLlmModel: null,
       sonioxFastPrompt: null,
+      visionModel: null,
     }
     setLlmSettings(defaultLlmSettings)
     scheduleAdvancedSettingsUpdate(
@@ -576,6 +583,42 @@ export default function AdvancedSettingsContent() {
               </div>
             </>
           )}
+        </div>
+
+        {/* ── Vision Model ── */}
+        <div className="mt-6 pt-4 border-t border-[var(--border)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">
+            Vision Model (CONTEXT_AWARENESS)
+          </h3>
+          <p className="text-[13px] text-[var(--color-subtext)] mb-4">
+            Modèle Gemini utilisé pour l'analyse de capture d'écran. 
+            gemini-3.1-flash-lite-preview est le plus rapide (~0.5–1s).
+          </p>
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+              Modèle Vision
+            </label>
+            <select
+              value={llm?.visionModel ?? 'gemini-3.1-flash-lite-preview'}
+              onChange={(e) => {
+                const update = { visionModel: e.target.value }
+                setLlmSettings(update)
+                scheduleAdvancedSettingsUpdate(
+                  { ...llm, ...update },
+                  grammarServiceEnabled,
+                  macosAccessibilityContextEnabled,
+                )
+              }}
+              className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+            >
+              {VISION_MODEL_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+              Configurable uniquement pour le chemin Soniox ASR. Le chemin gRPC (Groq/Gemini ASR) utilise le modèle par défaut.
+            </p>
+          </div>
         </div>
 
         {windowContext?.window?.platform === 'darwin' && (
