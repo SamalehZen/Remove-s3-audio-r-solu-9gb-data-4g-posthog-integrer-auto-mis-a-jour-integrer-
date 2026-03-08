@@ -534,7 +534,9 @@ export class ItoSessionManager {
     const service = this.sonioxService
     this.sonioxService = null
 
-    if (mode === ItoMode.TRANSCRIBE) {
+    const hasCustomPrompt = this.sonioxContext?.tone?.promptTemplate?.trim()
+
+    if (mode === ItoMode.TRANSCRIBE && !hasCustomPrompt) {
       audioRecorderService.stopRecording()
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
