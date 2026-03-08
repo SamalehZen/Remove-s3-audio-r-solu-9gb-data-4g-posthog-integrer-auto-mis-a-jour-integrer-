@@ -475,7 +475,12 @@ export default function AdvancedSettingsContent() {
               type="checkbox"
               checked={!!(llm?.sonioxFastLlmEnabled)}
               onChange={(e) => {
-                const update = { sonioxFastLlmEnabled: e.target.checked }
+                const checked = e.target.checked
+                const update: Partial<LlmSettings> = { sonioxFastLlmEnabled: checked }
+                if (checked && !llm?.sonioxFastLlmProvider) {
+                  update.sonioxFastLlmProvider = 'cerebras'
+                  update.sonioxFastLlmModel = FAST_DEFAULT_MODELS_BY_PROVIDER['cerebras']
+                }
                 setLlmSettings(update)
                 scheduleAdvancedSettingsUpdate(
                   { ...llm, ...update },
