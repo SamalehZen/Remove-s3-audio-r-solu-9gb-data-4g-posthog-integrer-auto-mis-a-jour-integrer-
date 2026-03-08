@@ -601,16 +601,10 @@ export class ItoSessionManager {
               userDetailsContext: this.buildUserDetailsContextString(ctx.userDetails),
             }
           }
-          if (ctx?.replacements && ctx.replacements.length > 0) {
-            fastRequestBody.replacements = ctx.replacements.map(r => ({
-              fromText: r.from,
-              toText: r.to,
-            }))
-          }
           const fastResponse = await itoHttpClient.post(
             '/adjust-transcript',
             fastRequestBody,
-            { requireAuth: true },
+            { requireAuth: true, timeoutMs: 5000 },
           )
           if (fastResponse?.success && fastResponse?.transcript) {
             textToInsert = fastResponse.transcript

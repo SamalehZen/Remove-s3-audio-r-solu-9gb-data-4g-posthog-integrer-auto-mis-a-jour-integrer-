@@ -474,9 +474,15 @@ export default function AdvancedSettingsContent() {
             <input
               type="checkbox"
               checked={!!(llm?.sonioxFastLlmEnabled)}
-              onChange={(e) =>
-                setLlmSettings({ sonioxFastLlmEnabled: e.target.checked })
-              }
+              onChange={(e) => {
+                const update = { sonioxFastLlmEnabled: e.target.checked }
+                setLlmSettings(update)
+                scheduleAdvancedSettingsUpdate(
+                  { ...llm, ...update },
+                  grammarServiceEnabled,
+                  macosAccessibilityContextEnabled,
+                )
+              }}
               className="h-4 w-4 accent-[var(--ring)]"
             />
           </div>
@@ -494,7 +500,13 @@ export default function AdvancedSettingsContent() {
                   onChange={(e) => {
                     const provider = e.target.value
                     const autoModel = FAST_DEFAULT_MODELS_BY_PROVIDER[provider] ?? ''
-                    setLlmSettings({ sonioxFastLlmProvider: provider, sonioxFastLlmModel: autoModel })
+                    const update = { sonioxFastLlmProvider: provider, sonioxFastLlmModel: autoModel }
+                    setLlmSettings(update)
+                    scheduleAdvancedSettingsUpdate(
+                      { ...llm, ...update },
+                      grammarServiceEnabled,
+                      macosAccessibilityContextEnabled,
+                    )
                   }}
                   className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
                 >
@@ -514,7 +526,15 @@ export default function AdvancedSettingsContent() {
                 </label>
                 <input
                   value={llm?.sonioxFastLlmModel ?? ''}
-                  onChange={(e) => setLlmSettings({ sonioxFastLlmModel: e.target.value })}
+                  onChange={(e) => {
+                    const update = { sonioxFastLlmModel: e.target.value }
+                    setLlmSettings(update)
+                    scheduleAdvancedSettingsUpdate(
+                      { ...llm, ...update },
+                      grammarServiceEnabled,
+                      macosAccessibilityContextEnabled,
+                    )
+                  }}
                   className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
                   placeholder="e.g. llama-3.3-70b"
                   maxLength={30}
@@ -531,7 +551,15 @@ export default function AdvancedSettingsContent() {
                 </label>
                 <textarea
                   value={llm?.sonioxFastPrompt ?? ''}
-                  onChange={(e) => setLlmSettings({ sonioxFastPrompt: e.target.value })}
+                  onChange={(e) => {
+                    const update = { sonioxFastPrompt: e.target.value }
+                    setLlmSettings(update)
+                    scheduleAdvancedSettingsUpdate(
+                      { ...llm, ...update },
+                      grammarServiceEnabled,
+                      macosAccessibilityContextEnabled,
+                    )
+                  }}
                   className="w-full ml-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent resize-y"
                   rows={6}
                   maxLength={1500}

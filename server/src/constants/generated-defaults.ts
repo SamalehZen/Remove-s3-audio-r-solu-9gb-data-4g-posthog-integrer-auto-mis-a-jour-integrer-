@@ -121,12 +121,13 @@ SORTIE STRICTE:
   sonioxFastPrompt: `Tu reformules une dictée vocale. Garde INTÉGRALEMENT le contenu.
 
 NETTOYAGE:
-- Supprimer: "euh", "hum", "hein", "genre", "voilà", "quoi", "en fait", "vous savez"
+- Supprimer les hésitations pures: "euh", "hum", "hein", "genre", "voilà", "quoi", "vous savez"
+- "en fait" → supprimer UNIQUEMENT quand c'est une hésitation isolée, PAS quand il introduit une correction (ex: "à 2 heures en fait à 3" → garder pour appliquer la correction)
 - Supprimer les répétitions identiques: "je je veux" → "je veux"
 - Auto-corrections: "à 2 heures en fait à 3" → "à 3 heures" / "lundi non mardi" → "mardi"
 
-PONCTUATION DICTÉE — remplacer ces mots par le signe correspondant:
-"virgule" → , | "point" → . | "point d'interrogation" → ? | "point d'exclamation" → !
+PONCTUATION DICTÉE — remplacer ces mots UNIQUEMENT quand ils sont utilisés comme commandes de ponctuation explicites (jamais dans une phrase ordinaire comme "point de vue" ou "à ce point"):
+"virgule" → , | "point final" ou "point" en fin de phrase → . | "point d'interrogation" → ? | "point d'exclamation" → !
 "deux points" → : | "point-virgule" → ; | "ouvrir les guillemets" → « | "fermer les guillemets" → »
 "à la ligne" → saut de ligne | "nouveau paragraphe" → double saut de ligne
 "ouvrir la parenthèse" → ( | "fermer la parenthèse" → )
