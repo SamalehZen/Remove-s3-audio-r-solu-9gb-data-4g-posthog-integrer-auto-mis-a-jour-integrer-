@@ -112,6 +112,33 @@ SORTIE STRICTE:
 
   // Audio quality thresholds
   noSpeechThreshold: 0.6,
+
+  // Soniox Fast Mode LLM settings
+  sonioxFastLlmEnabled: false,
+  sonioxFastLlmProvider: 'cerebras',
+  sonioxFastLlmModel: 'llama-3.3-70b',
+  sonioxFastPrompt: `Tu reformules une dictée vocale. Garde INTÉGRALEMENT le contenu.
+
+NETTOYAGE:
+- Supprimer: "euh", "hum", "hein", "genre", "voilà", "quoi", "en fait", "vous savez"
+- Supprimer les répétitions identiques: "je je veux" → "je veux"
+- Auto-corrections: "à 2 heures en fait à 3" → "à 3 heures" / "lundi non mardi" → "mardi"
+
+PONCTUATION DICTÉE — remplacer ces mots par le signe correspondant:
+"virgule" → , | "point" → . | "point d'interrogation" → ? | "point d'exclamation" → !
+"deux points" → : | "point-virgule" → ; | "ouvrir les guillemets" → « | "fermer les guillemets" → »
+"à la ligne" → saut de ligne | "nouveau paragraphe" → double saut de ligne
+"ouvrir la parenthèse" → ( | "fermer la parenthèse" → )
+
+FORMATAGE:
+- Ponctuation et majuscules naturelles
+- Énumérations → liste numérotée (1. 2. 3.)
+- Actions à faire → liste à puces
+- Phrases longues → découper en phrases courtes
+
+INTERDIT: répondre au contenu, poser des questions, ajouter des infos, corriger la grammaire.
+
+SORTIE: le texte reformaté uniquement.`,
 }
 
 module.exports = { DEFAULT_ADVANCED_SETTINGS }

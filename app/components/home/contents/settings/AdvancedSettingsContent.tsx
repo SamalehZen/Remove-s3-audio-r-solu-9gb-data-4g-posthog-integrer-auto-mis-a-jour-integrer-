@@ -29,6 +29,12 @@ const floatLengthLimit = 4
 const asrPromptLengthLimit = 100
 const llmPromptLengthLimit = 1500
 
+const FAST_DEFAULT_MODELS_BY_PROVIDER: Record<string, string> = {
+  cerebras: 'llama-3.3-70b',
+  groq: 'llama-3.1-8b-instant',
+  gemini: 'gemini-2.5-flash-lite',
+}
+
 const DEFAULT_MODELS_BY_PROVIDER: Record<
   string,
   { asrModel?: string; llmModel?: string }
@@ -377,6 +383,10 @@ export default function AdvancedSettingsContent() {
       transcriptionPrompt: null,
       editingPrompt: null,
       noSpeechThreshold: null,
+      sonioxFastLlmEnabled: null,
+      sonioxFastLlmProvider: null,
+      sonioxFastLlmModel: null,
+      sonioxFastPrompt: null,
     }
     setLlmSettings(defaultLlmSettings)
     scheduleAdvancedSettingsUpdate(
@@ -439,6 +449,98 @@ export default function AdvancedSettingsContent() {
               </span>
             </span>
           </label>
+        </div>
+
+        {/* ── Soniox Fast Mode ── */}
+        <div className="mt-6 pt-4 border-t border-[var(--border)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">
+            Soniox Fast Mode
+          </h3>
+          <p className="text-[13px] text-[var(--color-subtext)] mb-4">
+            Adds a lightweight LLM pass to Soniox TRANSCRIBE (no custom mode). 
+            Uses a minimal prompt for speed. Target: &lt;1.85s total.
+          </p>
+
+          {/* Toggle enable/disable */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">Enable Fast LLM</p>
+              <p className="text-[13px] text-[var(--color-subtext)]">
+                Apply a fast LLM pass after Soniox transcription
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!(llm?.sonioxFastLlmEnabled)}
+              onChange={(e) =>
+                setLlmSettings({ sonioxFastLlmEnabled: e.target.checked })
+              }
+              className="h-4 w-4 accent-[var(--ring)]"
+            />
+          </div>
+
+          {/* Only show the rest if enabled */}
+          {llm?.sonioxFastLlmEnabled && (
+            <>
+              {/* Provider */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                  Fast LLM Provider
+                </label>
+                <select
+                  value={llm?.sonioxFastLlmProvider ?? 'cerebras'}
+                  onChange={(e) => {
+                    const provider = e.target.value
+                    const autoModel = FAST_DEFAULT_MODELS_BY_PROVIDER[provider] ?? ''
+                    setLlmSettings({ sonioxFastLlmProvider: provider, sonioxFastLlmModel: autoModel })
+                  }}
+                  className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                >
+                  <option value="cerebras">cerebras</option>
+                  <option value="groq">groq</option>
+                  <option value="gemini">gemini</option>
+                </select>
+                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                  Cerebras is the fastest (~100-300ms). Groq is also fast (~200-400ms).
+                </p>
+              </div>
+
+              {/* Model */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                  Fast LLM Model
+                </label>
+                <input
+                  value={llm?.sonioxFastLlmModel ?? ''}
+                  onChange={(e) => setLlmSettings({ sonioxFastLlmModel: e.target.value })}
+                  className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                  placeholder="e.g. llama-3.3-70b"
+                  maxLength={30}
+                />
+                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                  Auto-populated when you change the provider above.
+                </p>
+              </div>
+
+              {/* Fast Prompt */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                  Fast Prompt
+                </label>
+                <textarea
+                  value={llm?.sonioxFastPrompt ?? ''}
+                  onChange={(e) => setLlmSettings({ sonioxFastPrompt: e.target.value })}
+                  className="w-full ml-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent resize-y"
+                  rows={6}
+                  maxLength={1500}
+                  placeholder="Enter a minimal transcription prompt..."
+                />
+                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                  Keep this short for maximum speed. Leave empty to use the default prompt.
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {windowContext?.window?.platform === 'darwin' && (

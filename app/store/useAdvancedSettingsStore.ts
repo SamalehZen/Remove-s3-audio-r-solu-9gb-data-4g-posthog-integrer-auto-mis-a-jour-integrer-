@@ -12,6 +12,10 @@ export interface LlmSettings {
   transcriptionPrompt: string | null
   editingPrompt: string | null
   noSpeechThreshold: number | null
+  sonioxFastLlmEnabled: boolean | null
+  sonioxFastLlmProvider: string | null
+  sonioxFastLlmModel: string | null
+  sonioxFastPrompt: string | null
 }
 
 interface AdvancedSettingsState {

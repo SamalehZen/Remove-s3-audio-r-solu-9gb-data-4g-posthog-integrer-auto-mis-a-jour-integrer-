@@ -20,6 +20,7 @@ import { audioRecorderService } from '../media/audio'
 import { unmuteSystemAudio } from '../media/systemAudio'
 import { itoHttpClient } from '../clients/itoHttpClient'
 import { STORE_KEYS } from '../constants/store-keys'
+import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults'
 import { customModeResolver } from './context/CustomModeResolver'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
@@ -574,7 +575,53 @@ export class ItoSessionManager {
         textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
       }
 
-      const { grammarServiceEnabled } = getAdvancedSettings()
+      const advSettings = getAdvancedSettings()
+
+      const sonioxFastEnabled = advSettings.llm?.sonioxFastLlmEnabled
+      if (sonioxFastEnabled && textToInsert.trim().length > 0) {
+        try {
+          const fastProvider = advSettings.llm?.sonioxFastLlmProvider || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmProvider
+          const fastModel = advSettings.llm?.sonioxFastLlmModel || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmModel
+          const fastPrompt = (advSettings.llm?.sonioxFastPrompt && advSettings.llm.sonioxFastPrompt.trim())
+            ? advSettings.llm.sonioxFastPrompt
+            : DEFAULT_ADVANCED_SETTINGS.sonioxFastPrompt
+
+          const fastRequestBody: Record<string, any> = {
+            transcript: textToInsert,
+            mode: 'transcribe',
+            llmSettings: {
+              llmProvider: fastProvider,
+              llmModel: fastModel || undefined,
+              llmTemperature: 0.1,
+              transcriptionPrompt: fastPrompt,
+            },
+          }
+          if (ctx?.userDetails) {
+            fastRequestBody.context = {
+              userDetailsContext: this.buildUserDetailsContextString(ctx.userDetails),
+            }
+          }
+          if (ctx?.replacements && ctx.replacements.length > 0) {
+            fastRequestBody.replacements = ctx.replacements.map(r => ({
+              fromText: r.from,
+              toText: r.to,
+            }))
+          }
+          const fastResponse = await itoHttpClient.post(
+            '/adjust-transcript',
+            fastRequestBody,
+            { requireAuth: true },
+          )
+          if (fastResponse?.success && fastResponse?.transcript) {
+            textToInsert = fastResponse.transcript
+            console.log('[itoSessionManager] Soniox Fast Mode LLM applied successfully')
+          }
+        } catch (error) {
+          console.error('[itoSessionManager] Soniox Fast Mode LLM failed, using raw transcript:', error)
+        }
+      }
+
+      const { grammarServiceEnabled } = advSettings
       if (grammarServiceEnabled) {
         textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
         textToInsert =
