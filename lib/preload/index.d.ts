@@ -136,6 +136,39 @@ declare global {
         getById: (id: string) => Promise<any>
         delete: (id: string) => Promise<void>
       }
+      customModes: {
+        list: () => Promise<any[]>
+        get: (id: string) => Promise<any>
+        upsert: (data: any) => Promise<any>
+        delete: (id: string) => Promise<void>
+      }
+      modeRules: {
+        list: (modeId: string) => Promise<any[]>
+        add: (data: any) => Promise<any>
+        delete: (id: string) => Promise<void>
+        listInstalledAppsWithIcons: () => Promise<
+          Array<{
+            name: string
+            exePath: string | null
+            bundleId: string | null
+            iconBase64: string | null
+          }>
+        >
+      }
+      domainContexts: {
+        list: () => Promise<
+          Array<{
+            slug: string
+            name: string
+            nameFr: string | null
+            icon: string
+            description: string | null
+            descriptionFr: string | null
+          }>
+        >
+        getUserDomain: () => Promise<string | null>
+        setUserDomain: (slug: string | null) => Promise<{ success: boolean }>
+      }
       loginItem: {
         setSettings: (enabled: boolean) => Promise<void>
         getSettings: () => Promise<Electron.LoginItemSettings>

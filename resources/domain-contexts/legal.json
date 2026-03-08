@@ -1,0 +1,201 @@
+{
+  "slug": "legal",
+  "name": "Legal",
+  "name_fr": "Juridique",
+  "icon": "ShieldCheck",
+  "description": "Contract review, litigation, legal memos, client consultations, regulatory compliance, corporate law",
+  "description_fr": "Revue de contrats, contentieux, notes juridiques, consultations clients, conformité réglementaire, droit des affaires",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Legal / Juridique"
+      },
+      {
+        "key": "case_type",
+        "value": "Civil litigation, criminal defense, corporate law, intellectual property, labor law"
+      },
+      {
+        "key": "jurisdiction",
+        "value": "Common law, civil law, international, EU, French, North American"
+      },
+      {
+        "key": "parties",
+        "value": "Attorneys, judges, plaintiffs, defendants, witnesses, corporate counsel"
+      },
+      {
+        "key": "legal_area",
+        "value": "Contract law, tort law, regulatory compliance, M&A, IP, employment law"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English legal terminology"
+      }
+    ],
+    "text": "Counsel for the plaintiff filed a motion for summary judgment, arguing that the undisputed facts establish a clear breach of contract under Section 7.2 of the licensing agreement. The defendant's failure to remit royalty payments for three consecutive quarters constitutes a material breach, triggering the acceleration clause and liquidated damages provision. The opposing counsel responded with a cross-motion, citing the force majeure clause. L'avocat de la défense a déposé une demande reconventionnelle, alléguant que le plaignant avait lui-même manqué à ses obligations contractuelles. Le tribunal de commerce a ordonné une médiation préalable avant toute audience sur le fond. Les parties ont convenu de désigner un médiateur agréé par le Centre de médiation et d'arbitrage de Paris. Le cabinet a été mandaté pour conduire une due diligence juridique dans le cadre d'une acquisition potentielle. L'examen porte sur les risques de conformité RGPD, les contrats de travail, la propriété intellectuelle incluant les brevets et marques déposées, ainsi que les litiges en cours. During the client consultation, the attorney advised on structuring the non-disclosure agreement to include a two-year non-compete clause. The fiduciary duty obligations of the board members were reviewed in light of the proposed merger. Le procureur a requis une peine de deux ans d'emprisonnement avec sursis, assortie d'une obligation de restitution. La cour d'appel a confirmé le jugement de première instance. Le mémoire en défense a été déposé dans les délais légaux, accompagné de sept pièces justificatives et de trois attestations sous serment. The corporate law department prepared the shareholders' agreement for the joint venture, including provisions for drag-along and tag-along rights, deadlock resolution mechanisms, and intellectual property assignment clauses. Le service juridique a émis un avis interne sur les implications de la nouvelle réglementation européenne en matière de protection des données personnelles. L'audit de conformité a identifié plusieurs lacunes dans les procédures internes de gestion des contrats, nécessitant la mise à jour du registre des traitements et la nomination d'un délégué à la protection des données.",
+    "terms": [
+      "acquittal",
+      "acquittement",
+      "affidavit",
+      "amicus curiae",
+      "appeal",
+      "appel",
+      "arbitrage",
+      "arbitration",
+      "assignation",
+      "avocat",
+      "breach of contract",
+      "brevet",
+      "class action",
+      "clause",
+      "compensatory damages",
+      "compliance",
+      "condamnation",
+      "conformité",
+      "contrat",
+      "conviction",
+      "copyright",
+      "counsel",
+      "damages",
+      "de facto",
+      "de jure",
+      "déclaration sous serment",
+      "defendant",
+      "défendeur",
+      "deposition",
+      "dommages et intérêts",
+      "due diligence",
+      "escrow",
+      "fiduciary duty",
+      "force majeure",
+      "GDPR",
+      "habeas corpus",
+      "indictment",
+      "injonction",
+      "injunction",
+      "intellectual property",
+      "juge",
+      "jurisdiction",
+      "jurisprudence",
+      "liability",
+      "lien",
+      "litigation",
+      "marque déposée",
+      "médiation",
+      "mediation",
+      "negligence",
+      "négligence",
+      "non-disclosure agreement",
+      "ordonnance",
+      "patent",
+      "plaignant",
+      "plaintiff",
+      "power of attorney",
+      "procès",
+      "procuration",
+      "propriété intellectuelle",
+      "prosecution",
+      "punitive damages",
+      "règlement",
+      "res judicata",
+      "responsabilité",
+      "restitution",
+      "RGPD",
+      "settlement",
+      "stare decisis",
+      "statute of limitations",
+      "subpoena",
+      "témoin",
+      "tort",
+      "trademark",
+      "tribunal",
+      "verdict"
+    ],
+    "translation_terms": [
+      {
+        "source": "lawsuit",
+        "target": "procès"
+      },
+      {
+        "source": "attorney",
+        "target": "avocat"
+      },
+      {
+        "source": "court",
+        "target": "tribunal"
+      },
+      {
+        "source": "judge",
+        "target": "juge"
+      },
+      {
+        "source": "jury",
+        "target": "jury"
+      },
+      {
+        "source": "witness",
+        "target": "témoin"
+      },
+      {
+        "source": "evidence",
+        "target": "preuve"
+      },
+      {
+        "source": "contract",
+        "target": "contrat"
+      },
+      {
+        "source": "clause",
+        "target": "clause"
+      },
+      {
+        "source": "settlement",
+        "target": "règlement"
+      },
+      {
+        "source": "appeal",
+        "target": "appel"
+      },
+      {
+        "source": "verdict",
+        "target": "verdict"
+      },
+      {
+        "source": "liability",
+        "target": "responsabilité"
+      },
+      {
+        "source": "damages",
+        "target": "dommages et intérêts"
+      },
+      {
+        "source": "injunction",
+        "target": "injonction"
+      },
+      {
+        "source": "subpoena",
+        "target": "assignation"
+      },
+      {
+        "source": "affidavit",
+        "target": "déclaration sous serment"
+      },
+      {
+        "source": "arbitration",
+        "target": "arbitrage"
+      },
+      {
+        "source": "mediation",
+        "target": "médiation"
+      },
+      {
+        "source": "compliance",
+        "target": "conformité"
+      },
+      {
+        "source": "prosecution",
+        "target": "poursuite judiciaire"
+      }
+    ]
+  }
+}

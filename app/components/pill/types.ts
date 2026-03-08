@@ -14,6 +14,8 @@ export interface PillContext {
   contextSource: 'screen' | 'selection' | null
   screenThumbnail: string | null
   currentMode: ItoMode | undefined
+  customModeName: string | null
+  customModeIcon: string | null
 }
 
 export interface PillState {

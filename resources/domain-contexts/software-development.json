@@ -1,0 +1,200 @@
+{
+  "slug": "software-development",
+  "name": "Software Development",
+  "name_fr": "Développement Logiciel",
+  "icon": "Code",
+  "description": "Code reviews, sprint planning, debugging sessions, architecture discussions, deployment processes",
+  "description_fr": "Revues de code, planification de sprint, sessions de débogage, discussions d'architecture, processus de déploiement",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Software Development / Développement Logiciel"
+      },
+      {
+        "key": "framework",
+        "value": "React, Next.js, Node.js, TypeScript, Tailwind CSS"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English technical terminology"
+      },
+      {
+        "key": "methodology",
+        "value": "Agile, Scrum, Kanban, CI/CD, DevOps"
+      },
+      {
+        "key": "tools",
+        "value": "Git, Docker, Kubernetes, VS Code, GitHub, Jira, Slack"
+      },
+      {
+        "key": "intent",
+        "value": "Code reviews, sprint ceremonies, pair programming, architecture design, incident response"
+      }
+    ],
+    "text": "During the sprint retrospective, the team discussed several blockers affecting velocity. The senior developer explained that the migration from the monolithic architecture to microservices introduced unexpected latency in the API gateway. On a refactoré le middleware d'authentification pour supporter OAuth 2.0 et les JSON Web Tokens, ce qui a résolu les problèmes de session timeout que les utilisateurs rencontraient en production. The pull request for the new GraphQL resolver was approved after addressing the N+1 query problem identified during code review. We implemented DataLoader to batch and cache database requests, reducing the average response time from 800 milliseconds to under 120 milliseconds. Le pipeline CI/CD sur GitHub Actions a été mis à jour pour inclure des tests d'intégration avec PostgreSQL et Redis dans des conteneurs Docker. The deployment to the staging environment revealed a regression in the WebSocket connection handling. Pour le prochain sprint, on prévoit de migrer le state management de Redux vers Zustand, d'ajouter du server-side rendering avec Next.js, et d'implémenter le caching avec Redis pour les endpoints les plus sollicités. L'équipe DevOps a configuré le monitoring avec Prometheus et Grafana pour surveiller les métriques de performance, incluant le throughput, la latence P99 et le taux d'erreur des microservices. Le backlog contient également des tâches pour améliorer l'accessibilité de l'interface utilisateur, optimiser le bundle size avec du tree-shaking et du code splitting, et mettre en place des tests end-to-end avec Playwright. On utilise Prisma comme ORM et les migrations sont versionnées dans le repository Git. L'architecte logiciel a proposé d'adopter une architecture hexagonale pour découpler la logique métier des dépendances externes. The team lead organized a knowledge-sharing session on TypeScript generics and advanced type inference patterns. We also discussed implementing feature flags with LaunchDarkly to enable progressive rollouts and canary deployments. Le QA engineer a mis en place un framework de tests automatisés couvrant quatre-vingts pour cent des scénarios critiques, avec des tests de régression exécutés à chaque pull request. On a configuré Vite pour remplacer webpack, ce qui a divisé le temps de build par trois.",
+    "terms": [
+      "API",
+      "async/await",
+      "base de code",
+      "base de données",
+      "branche",
+      "breakpoint",
+      "caching",
+      "callback",
+      "CDN",
+      "CI/CD",
+      "code splitting",
+      "correctif urgent",
+      "débogage",
+      "déploiement",
+      "deployment pipeline",
+      "Docker",
+      "endpoint",
+      "ESLint",
+      "event loop",
+      "extensibilité",
+      "garbage collection",
+      "Git",
+      "Grafana",
+      "GraphQL",
+      "heap",
+      "hotfix",
+      "index",
+      "JWT",
+      "Kubernetes",
+      "LaunchDarkly",
+      "linter",
+      "load balancer",
+      "merge conflict",
+      "microservices",
+      "middleware",
+      "migration",
+      "mise en production",
+      "Next.js",
+      "Node.js",
+      "OAuth",
+      "ORM",
+      "payload",
+      "Playwright",
+      "PostgreSQL",
+      "pré-production",
+      "Prisma",
+      "Prometheus",
+      "Promise",
+      "pull request",
+      "query optimization",
+      "rate limiting",
+      "React",
+      "Redis",
+      "refactoring",
+      "refactorisation",
+      "repository",
+      "REST",
+      "revue de code",
+      "schema",
+      "serverless",
+      "serveur",
+      "stack trace",
+      "Tailwind CSS",
+      "Terraform",
+      "transpiler",
+      "tree-shaking",
+      "TypeScript",
+      "Vite",
+      "webpack",
+      "WebSocket",
+      "Zustand"
+    ],
+    "translation_terms": [
+      {
+        "source": "pull request",
+        "target": "pull request"
+      },
+      {
+        "source": "deployment",
+        "target": "déploiement"
+      },
+      {
+        "source": "bug",
+        "target": "bogue"
+      },
+      {
+        "source": "framework",
+        "target": "framework"
+      },
+      {
+        "source": "backend",
+        "target": "back-end"
+      },
+      {
+        "source": "frontend",
+        "target": "front-end"
+      },
+      {
+        "source": "database",
+        "target": "base de données"
+      },
+      {
+        "source": "server",
+        "target": "serveur"
+      },
+      {
+        "source": "branch",
+        "target": "branche"
+      },
+      {
+        "source": "commit",
+        "target": "commit"
+      },
+      {
+        "source": "code review",
+        "target": "revue de code"
+      },
+      {
+        "source": "sprint",
+        "target": "sprint"
+      },
+      {
+        "source": "user story",
+        "target": "histoire utilisateur"
+      },
+      {
+        "source": "hotfix",
+        "target": "correctif urgent"
+      },
+      {
+        "source": "staging",
+        "target": "pré-production"
+      },
+      {
+        "source": "throughput",
+        "target": "débit"
+      },
+      {
+        "source": "latency",
+        "target": "latence"
+      },
+      {
+        "source": "scalability",
+        "target": "extensibilité"
+      },
+      {
+        "source": "refactoring",
+        "target": "refactorisation"
+      },
+      {
+        "source": "codebase",
+        "target": "base de code"
+      },
+      {
+        "source": "debugging",
+        "target": "débogage"
+      },
+      {
+        "source": "release",
+        "target": "mise en production"
+      }
+    ]
+  }
+}

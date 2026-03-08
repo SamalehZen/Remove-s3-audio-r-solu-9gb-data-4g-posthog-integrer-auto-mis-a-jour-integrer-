@@ -245,16 +245,6 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keydown", &key);
 
-            // IMMEDIATE BLOCK: Check if this specific key is part of any registered hotkey
-            // This prevents modifier keys (Control, Windows, Alt, Fn) from reaching
-            // other applications when they are part of our hotkeys
-            if is_key_in_hotkeys(&key_name) {
-                // Key is used in at least one hotkey - block it from the system
-                // but still track it internally and output to our listener
-                // The event is silently consumed (not returned to the OS)
-                return None;
-            }
-
             // Also check for "fast fn" (Unknown 179) specifically
             if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
                 output_event("keyup", &key);
@@ -324,11 +314,6 @@ fn callback(event: Event) -> Option<Event> {
 
             output_event("keyup", &key);
 
-            // IMMEDIATE BLOCK for key releases too
-            // If this key is part of any hotkey, block it from reaching other apps
-            if is_key_in_hotkeys(&key_name) {
-                return None;
-            }
             if key_name == "Unknown(179)" && is_key_in_hotkeys("Function") {
                 return None;
             }

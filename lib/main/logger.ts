@@ -48,6 +48,20 @@ export function initializeLogging() {
   }
 
   const MAX_QUEUE = 5000
+  const ARG_MAX_LEN = 200
+
+  const summarizeArgs = (args: any[]): { summary: string } => {
+    const parts = args.map(a => {
+      if (typeof a === 'string') return a
+      try {
+        const s = JSON.stringify(a)
+        return s.length > ARG_MAX_LEN ? s.slice(0, ARG_MAX_LEN) + '…' : s
+      } catch {
+        return String(a)
+      }
+    })
+    return { summary: parts.join(' ') }
+  }
   const initialEvents =
     (store.get(LOG_QUEUE_KEY) as LogEvent[] | undefined) ?? []
   const queue: LogEvent[] = [...initialEvents]
@@ -167,7 +181,7 @@ export function initializeLogging() {
   console.log = (...args: any[]) => {
     try {
       if (_shareAnalyticsCached) {
-        queue.push(toEvent('log', String(args[0] ?? ''), { args }))
+        queue.push(toEvent('log', String(args[0] ?? ''), summarizeArgs(args)))
         if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE)
         scheduleFlush()
       }
@@ -180,7 +194,7 @@ export function initializeLogging() {
   console.info = (...args: any[]) => {
     try {
       if (_shareAnalyticsCached) {
-        queue.push(toEvent('info', String(args[0] ?? ''), { args }))
+        queue.push(toEvent('info', String(args[0] ?? ''), summarizeArgs(args)))
         if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE)
         scheduleFlush()
       }
@@ -193,7 +207,7 @@ export function initializeLogging() {
   console.warn = (...args: any[]) => {
     try {
       if (_shareAnalyticsCached) {
-        queue.push(toEvent('warn', String(args[0] ?? ''), { args }))
+        queue.push(toEvent('warn', String(args[0] ?? ''), summarizeArgs(args)))
         if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE)
         scheduleFlush()
       }
@@ -206,7 +220,7 @@ export function initializeLogging() {
   console.error = (...args: any[]) => {
     try {
       // Always send errors to server for crash/bug visibility
-      queue.push(toEvent('error', String(args[0] ?? ''), { args }))
+      queue.push(toEvent('error', String(args[0] ?? ''), summarizeArgs(args)))
       if (queue.length > MAX_QUEUE) queue.splice(0, queue.length - MAX_QUEUE)
       scheduleFlush()
     } catch (err) {
@@ -236,7 +250,7 @@ export function initializeLogging() {
         const mapped = levelMap[method] || 'info'
         const isError = method === 'error'
         if (isError || _shareAnalyticsCached) {
-          queue.push(toEvent(mapped as any, String(args[0] ?? ''), { args }))
+          queue.push(toEvent(mapped as any, String(args[0] ?? ''), summarizeArgs(args)))
           if (queue.length > MAX_QUEUE)
             queue.splice(0, queue.length - MAX_QUEUE)
           scheduleFlush()

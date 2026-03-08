@@ -10,7 +10,7 @@ export class UserDetailsTable {
 
   static async upsert(
     userId: string,
-    details: Omit<UserDetails, 'user_id' | 'created_at' | 'updated_at'>,
+    details: Omit<UserDetails, 'user_id' | 'created_at' | 'updated_at' | 'domain_context_slug'>,
   ): Promise<void> {
     const now = new Date().toISOString()
     const query = `
@@ -51,6 +51,16 @@ export class UserDetailsTable {
 
   static async deleteAllUserData(userId: string): Promise<void> {
     await this.deleteByUserId(userId)
+  }
+
+  static async updateDomainContext(
+    userId: string,
+    slug: string | null,
+  ): Promise<void> {
+    await run(
+      `UPDATE user_details SET domain_context_slug = ?, updated_at = ? WHERE user_id = ?`,
+      [slug, new Date().toISOString(), userId],
+    )
   }
 }
 

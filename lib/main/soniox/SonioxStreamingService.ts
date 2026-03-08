@@ -13,6 +13,13 @@ export interface SonioxTranslationConfig {
   languageB?: string
 }
 
+export interface SonioxContextConfig {
+  general?: Array<{ key: string; value: string }>
+  text?: string
+  terms?: string[]
+  translation_terms?: Array<{ source: string; target: string }>
+}
+
 export interface SonioxEvents {
   token: (token: SonioxToken) => void
   'final-text': (text: string) => void
@@ -27,11 +34,15 @@ export class SonioxStreamingService extends EventEmitter {
   private accumulatedText = ''
   private hasErrored = false
   private isTranslationMode = false
+  private static readonly FINISH_TIMEOUT_MS = 3000
 
   async start(
     tempApiKey: string,
     translationConfig?: SonioxTranslationConfig,
-    options?: { disableEndpointDetection?: boolean },
+    options?: {
+      disableEndpointDetection?: boolean
+      context?: SonioxContextConfig
+    },
   ): Promise<void> {
     if (this.isActive) {
       console.warn(
@@ -56,6 +67,24 @@ export class SonioxStreamingService extends EventEmitter {
 
     if (!translationConfig) {
       sessionConfig.language_hints = ['fr']
+    }
+
+    if (options?.context) {
+      const ctx: any = {}
+      if (options.context.general?.length) ctx.general = options.context.general
+      if (options.context.text) ctx.text = options.context.text
+      if (options.context.terms?.length) ctx.terms = options.context.terms
+      if (options.context.translation_terms?.length)
+        ctx.translation_terms = options.context.translation_terms
+      if (Object.keys(ctx).length > 0) {
+        sessionConfig.context = ctx
+        console.log('[SonioxStreaming] Context injected:', {
+          general: ctx.general?.length || 0,
+          text: ctx.text?.length || 0,
+          terms: ctx.terms?.length || 0,
+          translation_terms: ctx.translation_terms?.length || 0,
+        })
+      }
     }
 
     if (translationConfig) {
@@ -157,12 +186,31 @@ export class SonioxStreamingService extends EventEmitter {
 
   async stop(): Promise<string> {
     if (!this.session) {
+      this.removeAllListeners()
       return this.accumulatedText
     }
 
     try {
       if (!this.hasErrored) {
-        await this.session.finish()
+        let finishTimeoutId: ReturnType<typeof setTimeout> | null = null
+        try {
+          await Promise.race([
+            this.session.finish(),
+            new Promise<void>((_, reject) => {
+              finishTimeoutId = setTimeout(
+                () => reject(new Error('finish() timed out')),
+                SonioxStreamingService.FINISH_TIMEOUT_MS,
+              )
+            }),
+          ])
+        } catch (err: any) {
+          console.warn(
+            '[SonioxStreaming] finish() did not complete in time, forcing close:',
+            err.message,
+          )
+        } finally {
+          if (finishTimeoutId) clearTimeout(finishTimeoutId)
+        }
       }
       this.session.close()
     } catch (error) {
@@ -175,12 +223,16 @@ export class SonioxStreamingService extends EventEmitter {
     this.isTranslationMode = false
     this.session = null
     this.client = null
+    this.removeAllListeners()
 
     return finalText
   }
 
   cancel(): void {
-    if (!this.session) return
+    if (!this.session) {
+      this.removeAllListeners()
+      return
+    }
     try {
       this.session.close()
     } catch (error) {
@@ -192,6 +244,7 @@ export class SonioxStreamingService extends EventEmitter {
     this.session = null
     this.client = null
     this.accumulatedText = ''
+    this.removeAllListeners()
   }
 
   getAccumulatedText(): string {

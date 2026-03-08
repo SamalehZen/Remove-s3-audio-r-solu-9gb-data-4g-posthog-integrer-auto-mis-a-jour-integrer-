@@ -1075,4 +1075,140 @@ Un texte formel, clair et prêt à un usage professionnel. Rien d''autre.',
       DROP TABLE IF EXISTS app_target_signatures;
     `,
   },
+  {
+    id: '20260301000000_add_custom_modes_and_activation_rules',
+    up: `
+      CREATE TABLE IF NOT EXISTS custom_modes (
+        id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        icon TEXT DEFAULT 'microphone',
+        preset_type TEXT NOT NULL DEFAULT 'blank',
+        prompt_template TEXT NOT NULL DEFAULT '',
+        language TEXT DEFAULT 'auto',
+        ito_mode INTEGER NOT NULL DEFAULT 0,
+        tone_id TEXT,
+        sort_order INTEGER DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
+        is_system INTEGER DEFAULT 0,
+        playback_when_recording TEXT DEFAULT 'keep_playing',
+        auto_paste TEXT DEFAULT 'on',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        PRIMARY KEY (id, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS mode_activation_rules (
+        id TEXT PRIMARY KEY,
+        mode_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        app_name TEXT,
+        icon_base64 TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('default', 'local-user', 'Default', 'microphone', 'voice_to_text', '', 'auto', 0, NULL, 0, 1, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('super', 'local-user', 'Super', 'super', 'super', '', 'auto', 1, NULL, 1, 0, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('voice-to-text', 'local-user', 'Voice to text', 'voice_to_text', 'voice_to_text', '', 'auto', 0, NULL, 2, 0, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('message', 'local-user', 'Message', 'message', 'message', '- Keep the language casual and conversational like a text message\n- Capitalize the first letter of each sentence\n- Remove filler words\n- Keep question marks and exclamation points\n- Never end the last sentence with a period', 'auto', 1, NULL, 3, 0, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('mail', 'local-user', 'Mail', 'mail', 'mail', '- Sound like the speaker, but written\n- Fix grammar, remove filler\n- Format as a professional email with greeting, body, and sign-off\n- Preserve the speaker greeting and sign-off if present\n- DO NOT introduce new phrasing or change intent', 'auto', 1, NULL, 4, 0, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('note', 'local-user', 'Note', 'note', 'note', '- Organize the speech into clear, structured notes\n- Use bullet points for main ideas\n- Add headers for distinct topics\n- Remove filler words and repetition\n- Keep the original meaning intact', 'auto', 1, NULL, 5, 0, 1, datetime('now'), datetime('now'));
+      INSERT OR IGNORE INTO custom_modes (id, user_id, name, icon, preset_type, prompt_template, language, ito_mode, tone_id, sort_order, is_default, is_system, created_at, updated_at)
+      VALUES ('meeting', 'local-user', 'Meeting', 'meeting', 'meeting', '- Structure as meeting notes with clear sections\n- List action items and decisions separately\n- Include key discussion points\n- Keep it professional and concise', 'auto', 1, NULL, 6, 0, 1, datetime('now'), datetime('now'));
+      CREATE INDEX IF NOT EXISTS idx_custom_modes_user_id ON custom_modes(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_user_id ON mode_activation_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_mode_id ON mode_activation_rules(mode_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
+    `,
+    down: `
+      DROP INDEX IF EXISTS idx_mode_activation_rules_value;
+      DROP INDEX IF EXISTS idx_mode_activation_rules_mode_id;
+      DROP INDEX IF EXISTS idx_mode_activation_rules_user_id;
+      DROP INDEX IF EXISTS idx_custom_modes_user_id;
+      DROP TABLE IF EXISTS mode_activation_rules;
+      DROP TABLE IF EXISTS custom_modes;
+    `,
+  },
+  {
+    id: '20260306000000_add_domain_contexts',
+    up: `
+      CREATE TABLE IF NOT EXISTS domain_contexts (
+        slug TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_fr TEXT,
+        icon TEXT DEFAULT 'globe',
+        description TEXT,
+        description_fr TEXT,
+        context_json TEXT NOT NULL,
+        is_system INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      ALTER TABLE user_details ADD COLUMN domain_context_slug TEXT DEFAULT NULL;
+    `,
+    down: `
+      ALTER TABLE user_details DROP COLUMN domain_context_slug;
+      DROP TABLE IF EXISTS domain_contexts;
+    `,
+  },
+  {
+    id: '20260307000000_add_fk_mode_activation_rules',
+    up: `
+      CREATE TABLE mode_activation_rules_new (
+        id TEXT PRIMARY KEY,
+        mode_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        app_name TEXT,
+        icon_base64 TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (mode_id, user_id) REFERENCES custom_modes(id, user_id) ON DELETE CASCADE
+      );
+
+      INSERT INTO mode_activation_rules_new
+        SELECT id, mode_id, user_id, rule_type, value, app_name, icon_base64, created_at
+        FROM mode_activation_rules;
+
+      DROP TABLE mode_activation_rules;
+
+      ALTER TABLE mode_activation_rules_new RENAME TO mode_activation_rules;
+
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_user_id ON mode_activation_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_mode_id ON mode_activation_rules(mode_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
+    `,
+    down: `
+      CREATE TABLE mode_activation_rules_old (
+        id TEXT PRIMARY KEY,
+        mode_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL,
+        value TEXT NOT NULL,
+        app_name TEXT,
+        icon_base64 TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      INSERT INTO mode_activation_rules_old
+        SELECT id, mode_id, user_id, rule_type, value, app_name, icon_base64, created_at
+        FROM mode_activation_rules;
+
+      DROP TABLE mode_activation_rules;
+
+      ALTER TABLE mode_activation_rules_old RENAME TO mode_activation_rules;
+
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_user_id ON mode_activation_rules(user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_mode_id ON mode_activation_rules(mode_id, user_id);
+      CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
+    `,
+  },
 ]

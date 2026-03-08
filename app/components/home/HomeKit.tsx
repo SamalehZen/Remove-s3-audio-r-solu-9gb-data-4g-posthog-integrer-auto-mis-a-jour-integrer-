@@ -2,10 +2,10 @@ import {
   Home,
   BookOpen,
   FileText,
-  Sparkles,
   CogFour,
   InfoCircle,
   PanelLeft,
+  LayersTwo as Layers,
 } from '@mynaui/icons-react'
 import { ItoIcon } from '../icons/ItoIcon'
 import { useMainStore } from '@/app/store/useMainStore'
@@ -22,7 +22,7 @@ import DictionaryContent from './contents/DictionaryContent'
 import NotesContent from './contents/NotesContent'
 import SettingsContent from './contents/SettingsContent'
 import AboutContent from './contents/AboutContent'
-import AppStylingContent from './contents/AppStylingContent'
+import ModesContent from './contents/ModesContent'
 
 export default function HomeKit() {
   const { navExpanded, currentPage, setCurrentPage, toggleNavExpanded } =
@@ -189,8 +189,8 @@ export default function HomeKit() {
         return <DictionaryContent />
       case 'notes':
         return <NotesContent />
-      case 'app-styling':
-        return <AppStylingContent />
+      case 'modes':
+        return <ModesContent />
       case 'about':
         return <AboutContent />
       default:
@@ -251,11 +251,11 @@ export default function HomeKit() {
               onClick={() => setCurrentPage('notes')}
             />
             <NavItem
-              icon={<Sparkles className="w-5 h-5" />}
-              label="App Styling"
-              isActive={currentPage === 'app-styling'}
+              icon={<Layers className="w-5 h-5" />}
+              label="Modes"
+              isActive={currentPage === 'modes'}
               showText={showText}
-              onClick={() => setCurrentPage('app-styling')}
+              onClick={() => setCurrentPage('modes')}
             />
             <NavItem
               icon={<CogFour className="w-5 h-5" />}

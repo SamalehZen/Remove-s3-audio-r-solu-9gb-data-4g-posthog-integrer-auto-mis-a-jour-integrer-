@@ -7,6 +7,9 @@ import { interactionManager } from '../interactions/InteractionManager'
 import { preventAppNap, allowAppNap } from '../appNap'
 import { getAdvancedSettings } from '../store'
 import { audioRecorderService } from '../../media/audio'
+import { customModeResolver } from '../context/CustomModeResolver'
+import { activeWindowMonitor } from '../ActiveWindowMonitor'
+import { contextGrabber } from '../context/ContextGrabber'
 import { SonioxStreamingService } from '../soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from '../soniox/SonioxTempKeyManager'
 import { setFocusedText } from '../../media/text-writer'
@@ -84,6 +87,28 @@ class AgentSessionManager {
     const startMs = Date.now()
     console.info('[AgentSession] ══════ SESSION START ══════')
     interactionManager.initialize()
+
+    contextGrabber.setCustomModePrompt(null)
+    recordingStateNotifier.setCustomMode(null, null)
+
+    try {
+      const cached = activeWindowMonitor.getCachedState()
+      if (cached?.window) {
+        const resolved = await customModeResolver.resolve({
+          domain: cached.browserInfo?.domain ?? null,
+          bundleId: cached.window.bundleId ?? null,
+          exePath: cached.window.exePath ?? null,
+          appName: cached.window.appName ?? null,
+        })
+        if (resolved) {
+          recordingStateNotifier.setCustomMode(resolved.mode.name, resolved.mode.icon)
+          contextGrabber.setCustomModePrompt(resolved.mode.promptTemplate || null)
+          console.info('[AgentSession] Auto-activated custom mode:', resolved.mode.name)
+        }
+      }
+    } catch (error) {
+      console.error('[AgentSession] Custom mode resolution failed:', error)
+    }
 
     if (!this.agent) {
       console.info('[AgentSession] No existing agent, creating new one')
@@ -196,6 +221,7 @@ class AgentSessionManager {
           /* expected */
         }
       }
+      contextGrabber.setCustomModePrompt(null)
       allowAppNap()
       return
     }
@@ -225,6 +251,7 @@ class AgentSessionManager {
         })
         this.broadcastWindowState()
       } finally {
+        contextGrabber.setCustomModePrompt(null)
         recordingStateNotifier.notifyProcessingStopped()
         allowAppNap()
         itoStreamController.clearInteractionAudio()
@@ -234,6 +261,7 @@ class AgentSessionManager {
       }
     } else {
       console.warn('[AgentSession] No responsePromise available — session may have been cancelled')
+      contextGrabber.setCustomModePrompt(null)
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
       this.resetToolState()
@@ -275,6 +303,7 @@ class AgentSessionManager {
     if (!rawTranscript || rawTranscript.trim().length < 2) {
       console.info('[AgentSession] No speech from Soniox, skipping agent')
       recordingStateNotifier.notifyProcessingStopped()
+      contextGrabber.setCustomModePrompt(null)
       allowAppNap()
       return
     }
@@ -284,6 +313,7 @@ class AgentSessionManager {
     } catch (error) {
       console.error('[AgentSession] Agent error:', error)
     } finally {
+      contextGrabber.setCustomModePrompt(null)
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
       this.resetToolState()
@@ -422,6 +452,7 @@ class AgentSessionManager {
       itoStreamController.clearInteractionAudio()
     }
 
+    contextGrabber.setCustomModePrompt(null)
     recordingStateNotifier.notifyRecordingStopped()
     recordingStateNotifier.notifyProcessingStopped()
     allowAppNap()

@@ -8,6 +8,8 @@ const INITIAL_STATE: PillState = {
     contextSource: null,
     screenThumbnail: null,
     currentMode: undefined,
+    customModeName: null,
+    customModeIcon: null,
   },
 }
 
@@ -58,6 +60,10 @@ function pillReducer(state: PillState, action: PillAction): PillState {
             screenThumbnail:
               payload.screenThumbnailBase64 ?? state.context.screenThumbnail,
             currentMode: payload.mode ?? state.context.currentMode,
+            customModeName:
+              payload.customModeName ?? state.context.customModeName,
+            customModeIcon:
+              payload.customModeIcon ?? state.context.customModeIcon,
           },
         }
       }
@@ -106,6 +112,8 @@ function pillReducer(state: PillState, action: PillAction): PillState {
           contextSource: null,
           screenThumbnail: null,
           currentMode: undefined,
+          customModeName: null,
+          customModeIcon: null,
         },
       }
 

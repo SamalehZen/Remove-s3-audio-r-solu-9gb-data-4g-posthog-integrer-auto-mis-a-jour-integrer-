@@ -1,0 +1,191 @@
+{
+  "slug": "customer-support",
+  "name": "Customer Support",
+  "name_fr": "Support Client",
+  "icon": "Headphones",
+  "description": "Support calls, ticket resolution, escalation procedures, customer feedback, product troubleshooting, SLA management",
+  "description_fr": "Appels de support, résolution de tickets, procédures d'escalade, retours clients, dépannage produit, gestion des SLA",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Customer Support / Support Client"
+      },
+      {
+        "key": "product",
+        "value": "SaaS platform, mobile app, hardware, cloud services"
+      },
+      {
+        "key": "customer_type",
+        "value": "Enterprise, SMB, individual consumer, freemium user"
+      },
+      {
+        "key": "channel",
+        "value": "Phone, email, live chat, chatbot, self-service portal, social media"
+      },
+      {
+        "key": "priority",
+        "value": "Critical, high, medium, low — based on SLA tier and business impact"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English customer service terminology"
+      }
+    ],
+    "text": "The customer reported that they are unable to log in to their account after the recent platform update. They have tried resetting their password through the self-service portal but are receiving an error message stating that their email address is not recognized. After checking the system status dashboard, the agent confirmed that there is a known issue affecting SSO authentication for accounts migrated during the latest release. A hotfix is currently in progress, with an estimated resolution time of four hours. L'agent de support technique a créé un ticket d'incident de priorité haute et l'a escaladé à l'équipe de niveau deux. Le client a été informé qu'un contournement temporaire est disponible en utilisant l'authentification par mot de passe au lieu du SSO. Le responsable de l'équipe support a convoqué une réunion d'urgence pour évaluer si le SLA de disponibilité de quatre-vingt-dix-neuf virgule neuf pour cent est respecté. During the weekly support review, the first response time averaged two hours and thirty-seven minutes, within the SLA target. Customer satisfaction score came in at four point three out of five. Le rapport trimestriel montre que le volume de tickets a augmenté de vingt-deux pour cent. L'équipe a identifié que quarante pour cent des demandes pourraient être résolues par le chatbot si la base de connaissances était enrichie avec des guides de dépannage supplémentaires. Le plan d'action inclut l'ajout de tutoriels vidéo, la mise à jour de la FAQ, et l'implémentation d'un système de rappel automatique. The product team provided a preview of the upcoming self-service portal redesign, which includes AI-powered search, guided troubleshooting workflows, and contextual help articles. Early testing shows a projected thirty percent reduction in tier one ticket volume. L'équipe a également mis en place un programme de formation continue pour les agents de support, couvrant les nouvelles fonctionnalités du produit, les techniques de communication empathique et la gestion des clients mécontents. Le responsable qualité a présenté les résultats des écoutes d'appels du mois dernier, avec un score moyen de qualité de service de quatre-vingt-sept pour cent.",
+    "terms": [
+      "abonnement",
+      "account lockout",
+      "ACD",
+      "availability",
+      "backup",
+      "base de connaissances",
+      "billing inquiry",
+      "bug report",
+      "callback",
+      "CES",
+      "chat en direct",
+      "chatbot",
+      "client",
+      "contournement",
+      "credit",
+      "CSAT",
+      "dépannage",
+      "deprovisioning",
+      "diagnostic",
+      "disponibilité",
+      "downtime",
+      "escalade",
+      "escalation",
+      "facturation",
+      "facture",
+      "failover",
+      "FAQ",
+      "feature request",
+      "first response time",
+      "foire aux questions",
+      "garantie",
+      "hotfix",
+      "incident",
+      "IVR",
+      "knowledge base",
+      "known issue",
+      "MFA",
+      "NPS",
+      "omnichannel",
+      "outage",
+      "panne",
+      "password reset",
+      "patch",
+      "provisioning",
+      "rappel",
+      "redundancy",
+      "refund",
+      "regression",
+      "release notes",
+      "remboursement",
+      "résolution",
+      "resolution time",
+      "restore",
+      "RMA",
+      "rollback",
+      "root cause analysis",
+      "satisfaction",
+      "self-service",
+      "SLA",
+      "SSO",
+      "subscription management",
+      "system status",
+      "temps d'arrêt",
+      "ticket",
+      "tier 1",
+      "tier 2",
+      "tier 3",
+      "troubleshooting",
+      "uptime",
+      "workaround"
+    ],
+    "translation_terms": [
+      {
+        "source": "ticket",
+        "target": "ticket"
+      },
+      {
+        "source": "escalation",
+        "target": "escalade"
+      },
+      {
+        "source": "customer",
+        "target": "client"
+      },
+      {
+        "source": "issue",
+        "target": "problème"
+      },
+      {
+        "source": "resolution",
+        "target": "résolution"
+      },
+      {
+        "source": "feedback",
+        "target": "retour"
+      },
+      {
+        "source": "refund",
+        "target": "remboursement"
+      },
+      {
+        "source": "subscription",
+        "target": "abonnement"
+      },
+      {
+        "source": "billing",
+        "target": "facturation"
+      },
+      {
+        "source": "invoice",
+        "target": "facture"
+      },
+      {
+        "source": "warranty",
+        "target": "garantie"
+      },
+      {
+        "source": "troubleshooting",
+        "target": "dépannage"
+      },
+      {
+        "source": "outage",
+        "target": "panne"
+      },
+      {
+        "source": "downtime",
+        "target": "temps d'arrêt"
+      },
+      {
+        "source": "workaround",
+        "target": "solution de contournement"
+      },
+      {
+        "source": "knowledge base",
+        "target": "base de connaissances"
+      },
+      {
+        "source": "FAQ",
+        "target": "foire aux questions"
+      },
+      {
+        "source": "live chat",
+        "target": "chat en direct"
+      },
+      {
+        "source": "callback",
+        "target": "rappel"
+      },
+      {
+        "source": "satisfaction",
+        "target": "satisfaction"
+      }
+    ]
+  }
+}

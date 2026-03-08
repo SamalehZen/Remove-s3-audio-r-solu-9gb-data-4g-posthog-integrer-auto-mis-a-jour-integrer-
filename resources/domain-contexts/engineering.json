@@ -1,0 +1,192 @@
+{
+  "slug": "engineering",
+  "name": "Engineering",
+  "name_fr": "Ingénierie",
+  "icon": "Wrench",
+  "description": "Design reviews, project specs, safety assessments, manufacturing processes, quality control, technical specifications",
+  "description_fr": "Revues de conception, spécifications de projet, évaluations de sécurité, processus de fabrication, contrôle qualité, spécifications techniques",
+  "context": {
+    "general": [
+      {
+        "key": "domain",
+        "value": "Engineering / Ingénierie"
+      },
+      {
+        "key": "discipline",
+        "value": "Mechanical, electrical, civil, chemical, aerospace, industrial"
+      },
+      {
+        "key": "project",
+        "value": "Product design, manufacturing, infrastructure, R&D, maintenance"
+      },
+      {
+        "key": "standards",
+        "value": "ISO 9001, Six Sigma, OSHA, ASME, IEEE, CE marking"
+      },
+      {
+        "key": "materials",
+        "value": "Steel, aluminum, composites, polymers, ceramics, semiconductors"
+      },
+      {
+        "key": "language",
+        "value": "Bilingual French-English engineering terminology"
+      }
+    ],
+    "text": "The design review committee evaluated the revised specifications for the turbine assembly. The finite element analysis shows that the maximum von Mises stress under operating conditions is three hundred and forty megapascals, well below the yield strength of four hundred and fifty megapascals. The fatigue life analysis predicts over ten million cycles before crack initiation. L'ingénieur responsable du projet a présenté les résultats de la validation du prototype. Les tests de résistance à la traction montrent une contrainte de rupture conforme aux spécifications du cahier des charges. Le coefficient de friction mesuré est de zéro virgule douze, dans la tolérance acceptable pour le roulement à billes sélectionné. L'analyse AMDEC a identifié trois modes de défaillance critiques nécessitant des actions correctives avant la mise en production. The manufacturing team proposed switching from CNC machining to investment casting to reduce production costs by thirty-five percent. The GD&T specifications require a true position tolerance of zero point one millimeters on the mounting bolt pattern. Le service qualité a effectué un audit interne conformément aux exigences ISO 9001. Le plan d'actions correctives inclut la mise à jour du système de gestion des nomenclatures et la formation des opérateurs sur les procédures de contrôle dimensionnel. The commissioning phase for the new production line is scheduled for next month. The PLC programming is complete and the SCADA system integration tests are underway. The reliability engineering team conducted a thorough failure mode and effects analysis on the critical subsystem assemblies. The thermal management solution was validated through computational fluid dynamics simulation, showing peak temperatures within acceptable limits under worst-case conditions. L'équipe de production a lancé un programme d'amélioration continue basé sur la méthodologie Kaizen, ciblant une réduction de quinze pour cent des temps de cycle sur la ligne d'assemblage principale. Le responsable qualité a présenté les résultats de l'audit fournisseurs, recommandant la qualification de deux nouveaux sous-traitants pour les pièces critiques. Les essais de fatigue sur le prototype ont confirmé une durée de vie supérieure aux spécifications du cahier des charges.",
+    "terms": [
+      "AMDEC",
+      "BOM",
+      "boulon",
+      "CAD",
+      "CAM",
+      "CFD",
+      "chamfer",
+      "charge",
+      "clearance",
+      "CNC",
+      "coefficient of friction",
+      "commissioning",
+      "contrainte",
+      "corrosion",
+      "couple",
+      "courant",
+      "creep",
+      "datum",
+      "decommissioning",
+      "déformation",
+      "DMAIC",
+      "ECN",
+      "écrou",
+      "étalonnage",
+      "fatigue",
+      "FEA",
+      "fillet",
+      "FMEA",
+      "fréquence",
+      "GD&T",
+      "hazard analysis",
+      "HMI",
+      "interference fit",
+      "ISO 9001",
+      "Kaizen",
+      "lean manufacturing",
+      "lockout/tagout",
+      "Mach number",
+      "maintenance prédictive",
+      "maintenance préventive",
+      "MTBF",
+      "MTTR",
+      "nomenclature",
+      "OSHA",
+      "PID controller",
+      "plan technique",
+      "PLC",
+      "pompe",
+      "poutre",
+      "PPE",
+      "press fit",
+      "prototype",
+      "résistance",
+      "revision control",
+      "Reynolds number",
+      "root cause analysis",
+      "roulement",
+      "SCADA",
+      "Six Sigma",
+      "soudure",
+      "tension",
+      "thermal conductivity",
+      "tolérance",
+      "tolerance",
+      "torque",
+      "traction",
+      "turbine",
+      "validation",
+      "vanne",
+      "verification",
+      "yield strength"
+    ],
+    "translation_terms": [
+      {
+        "source": "torque",
+        "target": "couple"
+      },
+      {
+        "source": "tensile",
+        "target": "traction"
+      },
+      {
+        "source": "stress",
+        "target": "contrainte"
+      },
+      {
+        "source": "strain",
+        "target": "déformation"
+      },
+      {
+        "source": "load",
+        "target": "charge"
+      },
+      {
+        "source": "beam",
+        "target": "poutre"
+      },
+      {
+        "source": "weld",
+        "target": "soudure"
+      },
+      {
+        "source": "bolt",
+        "target": "boulon"
+      },
+      {
+        "source": "nut",
+        "target": "écrou"
+      },
+      {
+        "source": "bearing",
+        "target": "roulement"
+      },
+      {
+        "source": "valve",
+        "target": "vanne"
+      },
+      {
+        "source": "pump",
+        "target": "pompe"
+      },
+      {
+        "source": "turbine",
+        "target": "turbine"
+      },
+      {
+        "source": "circuit",
+        "target": "circuit"
+      },
+      {
+        "source": "voltage",
+        "target": "tension"
+      },
+      {
+        "source": "current",
+        "target": "courant"
+      },
+      {
+        "source": "resistance",
+        "target": "résistance"
+      },
+      {
+        "source": "frequency",
+        "target": "fréquence"
+      },
+      {
+        "source": "calibration",
+        "target": "étalonnage"
+      },
+      {
+        "source": "blueprint",
+        "target": "plan technique"
+      }
+    ]
+  }
+}
