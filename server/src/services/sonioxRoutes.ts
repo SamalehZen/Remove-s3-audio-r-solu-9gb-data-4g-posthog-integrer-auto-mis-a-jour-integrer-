@@ -377,7 +377,7 @@ export const registerSonioxRoutes = async (
         },
       )
 
-      const cleaned = filterLeakedContext(visionResult.trim())
+      const cleaned = filterLeakedContext(visionResult.trim(), true)
 
       console.log(
         `[adjust-context-light] Vision success: ${cleaned.length} chars`,
