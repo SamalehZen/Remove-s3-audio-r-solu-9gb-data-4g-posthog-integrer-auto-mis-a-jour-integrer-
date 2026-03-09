@@ -50,6 +50,8 @@
     "build:win": "bash ./build-app.sh windows",
     "build:mac": "bash ./build-app.sh mac",
     "generate:constants": "bun scripts/generate-constants.js",
+    "build:web": "vite build --config vite.config.web.mts",
+    "dev:web": "vite --config vite.config.web.mts",
     "build:app": "bash ./build-app.sh",
     "prepare": "husky"
   },
