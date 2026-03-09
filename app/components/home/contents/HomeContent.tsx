@@ -421,14 +421,14 @@ export default function HomeContent({
 
         <div className="grid grid-cols-3 gap-3 mb-6">
           <Card
-            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all duration-200"
+            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200"
             onClick={() => setShowStatsDialog(true)}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Streak</span>
-                <div className="w-8 h-8 rounded-md bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
-                  <Fire size={16} weight="fill" className="text-orange-500" />
+                <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Fire size={16} weight="fill" className="text-primary" />
                 </div>
               </div>
               <div className="text-xl font-bold tracking-tight">
@@ -438,14 +438,14 @@ export default function HomeContent({
           </Card>
 
           <Card
-            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all duration-200"
+            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200"
             onClick={() => setShowStatsDialog(true)}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Words</span>
-                <div className="w-8 h-8 rounded-md bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center">
-                  <Rocket size={16} weight="fill" className="text-indigo-500" />
+                <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Rocket size={16} weight="fill" className="text-primary" />
                 </div>
               </div>
               <div className="text-xl font-bold tracking-tight">
@@ -455,14 +455,14 @@ export default function HomeContent({
           </Card>
 
           <Card
-            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-900 transition-all duration-200"
+            className="gap-0 py-0 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all duration-200"
             onClick={() => setShowStatsDialog(true)}
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Speed</span>
-                <div className="w-8 h-8 rounded-md bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
-                  <Trophy size={16} weight="fill" className="text-emerald-500" />
+                <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Trophy size={16} weight="fill" className="text-primary" />
                 </div>
               </div>
               <div className="text-xl font-bold tracking-tight">
@@ -472,29 +472,29 @@ export default function HomeContent({
           </Card>
         </div>
 
-        <Card className="gap-0 py-0 mb-8 overflow-hidden bg-gradient-to-r from-indigo-500 to-violet-500 border-0 text-white">
+        <Card className="gap-0 py-0 mb-8 overflow-hidden bg-primary border-0 text-primary-foreground">
           <CardContent className="p-0">
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
-                  <Microphone size={20} weight="fill" className="text-white" />
+                <div className="w-10 h-10 rounded-lg bg-primary-foreground/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                  <Microphone size={20} weight="fill" className="text-primary-foreground" />
                 </div>
                 <div>
                   <div className="text-sm font-semibold mb-0.5">
                     Voice dictation in any app
                   </div>
-                  <div className="text-xs text-white/80 flex items-center gap-1.5 flex-wrap">
+                  <div className="text-xs text-primary-foreground/80 flex items-center gap-1.5 flex-wrap">
                     <span>Hold</span>
                     {keyboardShortcut.map((key, index) => (
                       <React.Fragment key={index}>
-                        <kbd className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium bg-white/20 border border-white/20">
+                        <kbd className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium bg-primary-foreground/20 border border-primary-foreground/20">
                           {getKeyDisplay(key as KeyName, platform, {
                             showDirectionalText: false,
                             format: 'label',
                           })}
                         </kbd>
                         {index < keyboardShortcut.length - 1 && (
-                          <span className="text-white/60">+</span>
+                          <span className="text-primary-foreground/60">+</span>
                         )}
                       </React.Fragment>
                     ))}
@@ -504,7 +504,7 @@ export default function HomeContent({
               </div>
               <Button
                 size="sm"
-                className="gap-1.5 rounded-md bg-white text-indigo-600 hover:bg-white/90 font-semibold shadow-none"
+                className="gap-1.5 rounded-md bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-semibold shadow-none"
                 onClick={() =>
                   window.api?.invoke('web-open-url', EXTERNAL_LINKS.WEBSITE)
                 }
@@ -705,7 +705,7 @@ export default function HomeContent({
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Fire size={14} weight="fill" className="text-orange-500" />
+                  <Fire size={14} weight="fill" className="text-primary" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     Daily Streak
                   </span>
@@ -729,7 +729,7 @@ export default function HomeContent({
 
               <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Trophy size={14} weight="fill" className="text-emerald-500" />
+                  <Trophy size={14} weight="fill" className="text-primary" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     Avg Speed
                   </span>
@@ -747,7 +747,7 @@ export default function HomeContent({
 
               <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Rocket size={14} weight="fill" className="text-indigo-500" />
+                  <Rocket size={14} weight="fill" className="text-primary" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     Total Words
                   </span>
@@ -766,7 +766,7 @@ export default function HomeContent({
 
               <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Microphone size={14} weight="fill" className="text-indigo-500" />
+                  <Microphone size={14} weight="fill" className="text-primary" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                     Sessions
                   </span>

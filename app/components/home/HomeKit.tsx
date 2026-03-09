@@ -175,7 +175,7 @@ export default function HomeKit() {
   }
 
   return (
-    <div className="flex h-full bg-sidebar-background">
+    <div className="flex h-full bg-sidebar">
       <div
         className={`${navExpanded ? 'w-56' : 'w-[68px]'} flex flex-col justify-between py-4 px-3 transition-all duration-200 ease-in-out flex-shrink-0`}
         style={{ willChange: isTransitioning ? 'width' : 'auto' }}
@@ -184,16 +184,16 @@ export default function HomeKit() {
           <div className="flex items-center px-3 mb-8 h-10">
             <div className="w-6 flex items-center justify-center flex-shrink-0">
               <ItoIcon
-                className="w-6 text-white"
+                className="w-6 text-sidebar-foreground"
                 style={{ height: '28px' }}
               />
             </div>
             <div
               className={`flex items-center gap-2 transition-opacity duration-100 ${showText ? 'opacity-100 ml-3' : 'opacity-0 w-0 overflow-hidden'}`}
             >
-              <span className="text-xl font-bold tracking-tight text-white">ito</span>
+              <span className="text-xl font-bold tracking-tight text-sidebar-foreground">ito</span>
               {isPro && (
-                <Badge className="bg-gradient-to-r from-indigo-400 to-violet-400 text-white border-0 text-[10px] px-1.5 py-0 font-semibold">
+                <Badge className="bg-primary text-primary-foreground border-0 text-[10px] px-1.5 py-0 font-semibold">
                   PRO
                 </Badge>
               )}
@@ -223,7 +223,7 @@ export default function HomeKit() {
               onClick={() => setCurrentPage('notes')}
             />
 
-            <Separator className="my-2 bg-white/10" />
+            <Separator className="my-2 bg-sidebar-border" />
 
             <NavItem
               icon={<Sparkle size={20} weight={currentPage === 'app-styling' ? 'fill' : 'regular'} />}

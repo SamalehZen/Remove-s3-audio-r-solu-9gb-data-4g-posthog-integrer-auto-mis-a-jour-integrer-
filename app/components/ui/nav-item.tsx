@@ -21,8 +21,8 @@ export const NavItem = React.memo(function NavItem({
     <div
       className={`flex items-center px-3 py-2 rounded-md cursor-pointer transition-all duration-150 ${
         isActive
-          ? 'bg-sidebar-active text-sidebar-active-text font-medium'
-          : 'text-sidebar-foreground hover:text-sidebar-active-text hover:bg-white/5'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+          : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
       }`}
       onClick={onClick}
     >
