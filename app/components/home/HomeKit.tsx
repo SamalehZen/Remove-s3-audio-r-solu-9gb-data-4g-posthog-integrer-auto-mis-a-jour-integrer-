@@ -1,12 +1,12 @@
 import {
-  Home,
+  House,
   BookOpen,
   FileText,
-  Sparkles,
-  CogFour,
-  InfoCircle,
-  PanelLeft,
-} from '@mynaui/icons-react'
+  Sparkle,
+  GearSix,
+  Info,
+  SidebarSimple,
+} from '@phosphor-icons/react'
 import { ItoIcon } from '../icons/ItoIcon'
 import { useMainStore } from '@/app/store/useMainStore'
 import { Dialog, DialogContent } from '../ui/dialog'
@@ -17,6 +17,8 @@ import { useBilling } from '@/app/contexts/BillingContext'
 import { PaidStatus } from '@/lib/main/sqlite/models'
 import { useEffect, useState, useRef } from 'react'
 import { NavItem } from '../ui/nav-item'
+import { Badge } from '../ui/badge'
+import { Separator } from '../ui/separator'
 import HomeContent from './contents/HomeContent'
 import DictionaryContent from './contents/DictionaryContent'
 import NotesContent from './contents/NotesContent'
@@ -44,49 +46,33 @@ export default function HomeKit() {
     billingState.proStatus === 'active_pro' ||
     billingState.proStatus === 'free_trial'
 
-  // Reset flags when user changes
   useEffect(() => {
     const currentUserId = user?.id
     const previousUserId = previousUserIdRef.current
 
     if (currentUserId && currentUserId !== previousUserId) {
-      // User changed - reset trial start flag
       hasStartedTrialRef.current = false
       setIsStartingTrial(false)
       previousUserIdRef.current = currentUserId
     } else if (currentUserId && previousUserId === undefined) {
-      // First time setting userId
       previousUserIdRef.current = currentUserId
     }
   }, [user?.id])
 
-  // Start trial for users who don't have one yet
-  // Case 1: New users after onboarding completes
-  // Case 2: Existing users who completed onboarding but haven't started trial yet
   useEffect(() => {
-    // Skip if still loading billing state or not authenticated
     if (billingState.isLoading || !isAuthenticated) return
-
-    // Only proceed if onboarding is completed
     if (!onboardingCompleted) return
 
-    // Check if user has a trial or subscription
     const hasTrialOrSubscription =
       billingState.proStatus === 'free_trial' ||
       billingState.proStatus === 'active_pro' ||
       isPro
 
-    // Start trial if:
-    // 1. User hasn't started trial yet (tracked by ref)
-    // 2. User doesn't have a trial or subscription
-    // 3. User has completed onboarding
     if (!hasStartedTrialRef.current && !hasTrialOrSubscription) {
       hasStartedTrialRef.current = true
-      setIsStartingTrial(true) // Set flag to indicate trial is being started
-      // Start trial
+      setIsStartingTrial(true)
       window.api.trial.startAfterOnboarding().catch(err => {
         console.error('Failed to start trial:', err)
-        // Reset flag so we can retry if needed
         hasStartedTrialRef.current = false
         setIsStartingTrial(false)
       })
@@ -114,7 +100,6 @@ export default function HomeKit() {
     }
   }, [])
 
-  // Reset trial start flag when onboarding resets
   useEffect(() => {
     if (!onboardingCompleted) {
       hasStartedTrialRef.current = false
@@ -122,7 +107,6 @@ export default function HomeKit() {
     }
   }, [onboardingCompleted])
 
-  // Listen for billing deep-link events and finalize subscription
   useEffect(() => {
     const offSuccess = window.api.on(
       'billing-session-completed',
@@ -131,7 +115,6 @@ export default function HomeKit() {
           if (sessionId) {
             await window.api.billing.confirmSession(sessionId)
           }
-          // Ensure trial is completed locally and on server
           await window.api.trial.complete()
         } catch (err) {
           console.error('Failed to finalize billing session', err)
@@ -139,9 +122,7 @@ export default function HomeKit() {
       },
     )
 
-    const offCancel = window.api.on('billing-session-cancelled', () => {
-      // No-op for now; could show a toast in the future
-    })
+    const offCancel = window.api.on('billing-session-cancelled', () => {})
 
     return () => {
       offSuccess?.()
@@ -161,23 +142,18 @@ export default function HomeKit() {
     return () => clearTimeout(timer)
   }, [navExpanded])
 
-  // Handle text and positioning animation timing
   useEffect(() => {
     if (navExpanded) {
-      // When expanding: slide right first, then show text
       const timer = setTimeout(() => {
-        setShowText(true) // Show text after slide starts
+        setShowText(true)
       }, 75)
       return () => clearTimeout(timer)
     } else {
-      // When collapsing: hide text immediately, then center icons after slide completes
       setShowText(false)
-      // Return no-op function
       return () => {}
     }
   }, [navExpanded])
 
-  // Render the appropriate content based on current page
   const isSettingsOpen = currentPage === 'settings'
 
   const renderContent = () => {
@@ -199,73 +175,72 @@ export default function HomeKit() {
   }
 
   return (
-    <div className="flex h-full bg-[#E4E1DE]">
-      {/* Sidebar */}
+    <div className="flex h-full bg-sidebar">
       <div
-        className={`${navExpanded ? 'w-56' : 'w-[72px]'} flex flex-col justify-between py-5 px-3 transition-all duration-200 ease-in-out flex-shrink-0`}
+        className={`${navExpanded ? 'w-56' : 'w-[68px]'} flex flex-col justify-between py-4 px-3 transition-all duration-200 ease-in-out flex-shrink-0`}
         style={{ willChange: isTransitioning ? 'width' : 'auto' }}
       >
         <div>
-          {/* Logo and Plan */}
-          <div className="flex items-center px-3 mb-10">
+          <div className="flex items-center px-3 mb-8 h-10">
             <div className="w-6 flex items-center justify-center flex-shrink-0">
               <ItoIcon
-                className="w-6 text-foreground"
-                style={{ height: '32px' }}
+                className="w-6 text-sidebar-foreground"
+                style={{ height: '28px' }}
               />
             </div>
-            <span
-              className={`text-2xl font-bold font-sans transition-opacity duration-100 ${showText ? 'opacity-100' : 'opacity-0'} ${showText ? 'ml-3' : 'w-0 overflow-hidden'}`}
+            <div
+              className={`flex items-center gap-2 transition-opacity duration-100 ${showText ? 'opacity-100 ml-3' : 'opacity-0 w-0 overflow-hidden'}`}
             >
-              ito
-            </span>
-            {isPro && showText && (
-              <span
-                className={`text-xs font-semibold px-2 py-0.5 rounded-md bg-gradient-to-r from-purple-500 to-pink-500 text-white transition-opacity duration-100 ${showText ? 'opacity-100' : 'opacity-0'} ${showText ? 'ml-2' : 'w-0 overflow-hidden'}`}
-              >
-                PRO
-              </span>
-            )}
+              <span className="text-xl font-bold tracking-tight text-sidebar-foreground">ito</span>
+              {isPro && (
+                <Badge className="bg-primary text-primary-foreground border-0 text-[10px] px-1.5 py-0 font-semibold">
+                  PRO
+                </Badge>
+              )}
+            </div>
           </div>
-          {/* Nav */}
-          <div className="flex flex-col gap-1 text-sm">
+
+          <div className="flex flex-col gap-0.5 text-[13px]">
             <NavItem
-              icon={<Home className="w-5 h-5" />}
+              icon={<House size={20} weight={currentPage === 'home' ? 'fill' : 'regular'} />}
               label="Home"
               isActive={currentPage === 'home'}
               showText={showText}
               onClick={() => setCurrentPage('home')}
             />
             <NavItem
-              icon={<BookOpen className="w-5 h-5" />}
+              icon={<BookOpen size={20} weight={currentPage === 'dictionary' ? 'fill' : 'regular'} />}
               label="Dictionary"
               isActive={currentPage === 'dictionary'}
               showText={showText}
               onClick={() => setCurrentPage('dictionary')}
             />
             <NavItem
-              icon={<FileText className="w-5 h-5" />}
+              icon={<FileText size={20} weight={currentPage === 'notes' ? 'fill' : 'regular'} />}
               label="Notes"
               isActive={currentPage === 'notes'}
               showText={showText}
               onClick={() => setCurrentPage('notes')}
             />
+
+            <Separator className="my-2 bg-sidebar-border" />
+
             <NavItem
-              icon={<Sparkles className="w-5 h-5" />}
+              icon={<Sparkle size={20} weight={currentPage === 'app-styling' ? 'fill' : 'regular'} />}
               label="App Styling"
               isActive={currentPage === 'app-styling'}
               showText={showText}
               onClick={() => setCurrentPage('app-styling')}
             />
             <NavItem
-              icon={<CogFour className="w-5 h-5" />}
+              icon={<GearSix size={20} weight={currentPage === 'settings' ? 'fill' : 'regular'} />}
               label="Settings"
               isActive={currentPage === 'settings'}
               showText={showText}
               onClick={() => setCurrentPage('settings')}
             />
             <NavItem
-              icon={<InfoCircle className="w-5 h-5" />}
+              icon={<Info size={20} weight={currentPage === 'about' ? 'fill' : 'regular'} />}
               label="About"
               isActive={currentPage === 'about'}
               showText={showText}
@@ -274,9 +249,9 @@ export default function HomeKit() {
           </div>
         </div>
 
-        <div className="text-sm">
+        <div className="text-[13px]">
           <NavItem
-            icon={<PanelLeft className="w-5 h-5" />}
+            icon={<SidebarSimple size={20} />}
             label={navExpanded ? 'Collapse' : 'Expand'}
             showText={showText}
             onClick={toggleNavExpanded}
@@ -284,9 +259,8 @@ export default function HomeKit() {
         </div>
       </div>
 
-      {/* Main Content - White card with "page in page" effect */}
-      <div className="flex-1 bg-[#F3F2F1] rounded-[var(--radius-lg)] my-2 mr-2 shadow-[var(--shadow-soft)] overflow-hidden flex flex-col border border-[var(--border)]">
-        <div className="flex-1 overflow-y-auto pt-10 pb-10">{renderContent()}</div>
+      <div className="flex-1 bg-background rounded-lg my-2 mr-2 shadow-sm overflow-hidden flex flex-col border border-border">
+        <div className="flex-1 overflow-y-auto">{renderContent()}</div>
       </div>
 
       <Dialog
@@ -297,7 +271,7 @@ export default function HomeKit() {
       >
         <DialogContent
           showCloseButton={false}
-          className="max-w-none sm:max-w-none w-[80vw] h-[80vh] p-0 overflow-hidden rounded-2xl border border-[#E8E8E8] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.12)] grid-rows-[1fr]"
+          className="max-w-none sm:max-w-none w-[80vw] h-[80vh] p-0 overflow-hidden rounded-xl border border-border bg-card shadow-[0_24px_80px_rgba(0,0,0,0.12)] grid-rows-[1fr]"
         >
           <SettingsContent />
         </DialogContent>

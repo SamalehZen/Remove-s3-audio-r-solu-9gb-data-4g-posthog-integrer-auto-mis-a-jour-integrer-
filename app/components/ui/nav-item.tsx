@@ -19,18 +19,18 @@ export const NavItem = React.memo(function NavItem({
 }: NavItemProps) {
   const navContent = (
     <div
-      className={`flex items-center px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-180 ${
+      className={`flex items-center px-3 py-2 rounded-md cursor-pointer transition-all duration-150 ${
         isActive
-          ? 'bg-[var(--sidebar-active)] text-[var(--sidebar-active-text)] font-medium shadow-sm'
-          : 'text-[var(--foreground)] hover:bg-[var(--muted)]'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+          : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
       }`}
       onClick={onClick}
     >
-      <div className="w-6 flex items-center justify-center">{icon}</div>
+      <div className="w-5 flex items-center justify-center flex-shrink-0">{icon}</div>
       <span
-        className={`transition-opacity duration-100 ${
-          showText ? 'opacity-100' : 'opacity-0'
-        } ${showText ? 'ml-3' : 'w-0 overflow-hidden'}`}
+        className={`transition-opacity duration-100 text-[13px] ${
+          showText ? 'opacity-100 ml-3' : 'opacity-0 w-0 overflow-hidden'
+        }`}
       >
         {label}
       </span>
@@ -41,7 +41,7 @@ export const NavItem = React.memo(function NavItem({
     return (
       <Tooltip>
         <TooltipTrigger asChild>{navContent}</TooltipTrigger>
-        <TooltipContent side="right" sideOffset={2} className="text-sm">
+        <TooltipContent side="right" sideOffset={4} className="text-xs">
           {label}
         </TooltipContent>
       </Tooltip>
