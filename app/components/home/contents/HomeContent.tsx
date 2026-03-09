@@ -1,5 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { InfoCircle, Copy, Check } from '@mynaui/icons-react'
+import {
+  Info,
+  Copy,
+  Check,
+  Fire,
+  Rocket,
+  Trophy,
+  Microphone,
+  ArrowRight,
+  Clock,
+  WarningCircle,
+} from '@phosphor-icons/react'
 import { EXTERNAL_LINKS } from '@/lib/constants/external-links'
 import { useSettingsStore } from '../../../store/useSettingsStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../ui/tooltip'
@@ -10,6 +21,10 @@ import { getKeyDisplay } from '@/app/utils/keyboard'
 import { KeyName } from '@/lib/types/keyboard'
 import { usePlatform } from '@/app/hooks/usePlatform'
 import { ProUpgradeDialog } from '../ProUpgradeDialog'
+import { Button } from '../../ui/button'
+import { Badge } from '../../ui/badge'
+import { Card, CardContent } from '../../ui/card'
+import { Separator } from '../../ui/separator'
 import {
   Dialog,
   DialogContent,
@@ -18,36 +33,10 @@ import {
 } from '../../ui/dialog'
 import { useBilling } from '@/app/contexts/BillingContext'
 
-// Interface for interaction statistics
 interface InteractionStats {
   streakDays: number
   totalWords: number
   averageWPM: number
-}
-
-const _StatCard = ({
-  title,
-  value,
-  description,
-  icon,
-}: {
-  title: string
-  value: string
-  description: string
-  icon: React.ReactNode
-}) => {
-  return (
-    <div className="flex flex-col p-4 w-1/3 border border-[var(--border)] rounded-[var(--radius-lg)] gap-4">
-      <div className="flex flex-row items-center">
-        <div className="flex flex-col gap-1">
-          <div>{title}</div>
-          <div className="font-bold">{value}</div>
-        </div>
-        <div className="flex flex-col items-end flex-1">{icon}</div>
-      </div>
-      <div className="w-full text-[var(--color-subtext)]">{description}</div>
-    </div>
-  )
 }
 
 interface HomeContentProps {
@@ -78,7 +67,6 @@ export default function HomeContent({
   const [showStatsDialog, setShowStatsDialog] = useState(false)
   const billingState = useBilling()
 
-  // Persist "has shown trial dialog" flag in electron-store to survive remounts
   const [hasShownTrialDialog, setHasShownTrialDialogState] = useState(() => {
     try {
       const authStore = window.electron?.store?.get('auth') || {}
@@ -98,7 +86,6 @@ export default function HomeContent({
     }
   }, [])
 
-  // Show trial dialog when trial starts
   useEffect(() => {
     if (
       billingState.isTrialActive &&
@@ -139,11 +126,8 @@ export default function HomeContent({
     }
   }, [])
 
-  // Reset dialog flag when trial is no longer active or user becomes pro
-  // Only reset if we're certain the trial has ended (not just during loading/refreshing)
   useEffect(() => {
     if (billingState.isLoading) {
-      // Don't reset during loading to avoid race conditions
       return
     }
 
@@ -162,20 +146,14 @@ export default function HomeContent({
     setHasShownTrialDialog,
   ])
 
-  // Calculate statistics from interactions
   const calculateStats = useCallback(
     (interactions: Interaction[]): InteractionStats => {
       if (interactions.length === 0) {
         return { streakDays: 0, totalWords: 0, averageWPM: 0 }
       }
 
-      // Calculate streak (consecutive days with interactions)
       const streakDays = calculateStreak(interactions)
-
-      // Calculate total words from transcripts
       const totalWords = calculateTotalWords(interactions)
-
-      // Calculate average WPM (estimate based on average speaking rate)
       const averageWPM = calculateAverageWPM(interactions)
 
       return { streakDays, totalWords, averageWPM }
@@ -186,7 +164,6 @@ export default function HomeContent({
   const calculateStreak = (interactions: Interaction[]): number => {
     if (interactions.length === 0) return 0
 
-    // Group interactions by date
     const dateGroups = new Map<string, Interaction[]>()
     interactions.forEach(interaction => {
       const date = new Date(interaction.created_at).toDateString()
@@ -196,7 +173,6 @@ export default function HomeContent({
       dateGroups.get(date)!.push(interaction)
     })
 
-    // Sort dates in descending order (most recent first)
     const sortedDates = Array.from(dateGroups.keys()).sort(
       (a, b) => new Date(b).getTime() - new Date(a).getTime(),
     )
@@ -209,7 +185,6 @@ export default function HomeContent({
       const expectedDate = new Date(today)
       expectedDate.setDate(today.getDate() - i)
 
-      // Check if current date matches expected date (allowing for today or previous consecutive days)
       if (currentDate.toDateString() === expectedDate.toDateString()) {
         streak++
       } else {
@@ -224,7 +199,6 @@ export default function HomeContent({
     return interactions.reduce((total, interaction) => {
       const transcript = interaction.asr_output?.transcript?.trim()
       if (transcript) {
-        // Count words by splitting on whitespace and filtering out empty strings
         const words = transcript.split(/\s+/).filter(word => word.length > 0)
         return total + words.length
       }
@@ -246,7 +220,6 @@ export default function HomeContent({
     validInteractions.forEach(interaction => {
       const transcript = interaction.asr_output?.transcript?.trim()
       if (transcript && interaction.duration_ms) {
-        // Count words by splitting on whitespace and filtering out empty strings
         const words = transcript.split(/\s+/).filter(word => word.length > 0)
         totalWords += words.length
         totalDurationMs += interaction.duration_ms
@@ -255,11 +228,9 @@ export default function HomeContent({
 
     if (totalDurationMs === 0) return 0
 
-    // Calculate WPM: (total words / total duration in minutes)
     const totalMinutes = totalDurationMs / (1000 * 60)
     const wpm = totalWords / totalMinutes
 
-    // Round to nearest integer and ensure it's reasonable
     return Math.round(Math.max(1, wpm))
   }
 
@@ -277,14 +248,12 @@ export default function HomeContent({
     try {
       const allInteractions = await window.api.interactions.getAll()
 
-      // Sort by creation date (newest first) - remove the slice(0, 10) to show all interactions
       const sortedInteractions = allInteractions.sort(
         (a: Interaction, b: Interaction) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
       )
       setInteractions(sortedInteractions)
 
-      // Calculate and set statistics
       const calculatedStats = calculateStats(sortedInteractions)
       setStats(calculatedStats)
     } catch (error) {
@@ -297,7 +266,6 @@ export default function HomeContent({
   useEffect(() => {
     loadInteractions()
 
-    // Listen for new interactions
     const handleInteractionCreated = () => {
       loadInteractions()
     }
@@ -307,7 +275,6 @@ export default function HomeContent({
       handleInteractionCreated,
     )
 
-    // Cleanup listener on unmount
     return unsubscribe
   }, [loadInteractions])
 
@@ -333,16 +300,14 @@ export default function HomeContent({
     const isToday = date.toDateString() === today.toDateString()
     const isYesterday = date.toDateString() === yesterday.toDateString()
 
-    if (isToday) return 'TODAY'
-    if (isYesterday) return 'YESTERDAY'
+    if (isToday) return 'Today'
+    if (isYesterday) return 'Yesterday'
 
-    return date
-      .toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-      })
-      .toUpperCase()
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    })
   }
 
   const groupInteractionsByDate = (interactions: Interaction[]) => {
@@ -360,9 +325,7 @@ export default function HomeContent({
   }
 
   const getDisplayText = (interaction: Interaction) => {
-    // Check for errors first
     if (interaction.asr_output?.error) {
-      // Prefer precise error code mapping when available
       const code = interaction.asr_output?.errorCode
       if (code === 'CLIENT_TRANSCRIPTION_QUALITY_ERROR') {
         return {
@@ -389,7 +352,6 @@ export default function HomeContent({
       }
     }
 
-    // Check for empty transcript
     const transcript = interaction.asr_output?.transcript?.trim()
 
     if (!transcript) {
@@ -400,7 +362,6 @@ export default function HomeContent({
       }
     }
 
-    // Return the actual transcript
     return {
       text: transcript,
       isError: false,
@@ -422,16 +383,14 @@ export default function HomeContent({
     try {
       await navigator.clipboard.writeText(text)
       setCopiedItems(prev => new Set(prev).add(interactionId))
-      setOpenTooltipKey(`copy:${interactionId}`) // Keep tooltip open
+      setOpenTooltipKey(`copy:${interactionId}`)
 
-      // Reset the copied state after 2 seconds
       setTimeout(() => {
         setCopiedItems(prev => {
           const newSet = new Set(prev)
           newSet.delete(interactionId)
           return newSet
         })
-        // Close tooltip if it's still open for this item (do not override if user hovered elsewhere)
         setOpenTooltipKey(prev =>
           prev === `copy:${interactionId}` ? null : prev,
         )
@@ -441,278 +400,385 @@ export default function HomeContent({
     }
   }
 
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
   return (
     <div className="w-full h-full flex flex-col">
-      {/* Fixed Header Content */}
-      <div className="flex-shrink-0 px-12 max-w-4xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-10">
-          <h1 className="text-[30px] font-semibold tracking-tight font-sans">
-            Welcome back{firstName ? `, ${firstName}` : ''}
+      <div className="flex-shrink-0 px-8 lg:px-12 max-w-4xl mx-auto w-full pt-10">
+        <div className="mb-8">
+          <h1 className="text-2xl font-semibold tracking-tight mb-1">
+            {getGreeting()}{firstName ? `, ${firstName}` : ''}
           </h1>
-          <div
-            className="flex items-center gap-5 text-[13px] bg-[var(--color-surface)] border border-[var(--border)] rounded-[var(--radius-lg)] px-6 py-3 shadow-card cursor-pointer hover:shadow-soft hover:-translate-y-0.5 transition-all duration-180"
+          <p className="text-sm text-muted-foreground">
+            Here's your dictation activity overview
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <Card
+            className="gap-0 py-0 cursor-pointer hover:shadow-md transition-shadow duration-200 border-border/50"
             onClick={() => setShowStatsDialog(true)}
           >
-            <div className="flex items-center gap-2">
-              <span>🔥</span>
-              <span className="font-medium text-[var(--color-text)]">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Streak</span>
+                <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center">
+                  <Fire size={16} weight="fill" className="text-orange-500" />
+                </div>
+              </div>
+              <div className="text-xl font-bold tracking-tight">
                 {formatStreakText(stats.streakDays)}
-              </span>
-            </div>
-            <div className="h-5 w-px bg-warm-200" />
-            <div className="flex items-center gap-2">
-              <span>🚀</span>
-              <span className="font-medium text-[var(--color-text)]">
-                {stats.totalWords.toLocaleString()} words
-              </span>
-            </div>
-            <div className="h-5 w-px bg-warm-200" />
-            <div className="flex items-center gap-2">
-              <span>🏆</span>
-              <span className="font-medium text-[var(--color-text)]">
-                {stats.averageWPM} WPM
-              </span>
-            </div>
-          </div>
-        </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Dictation Info Box */}
-        <div className="bg-[var(--color-surface)] border border-[var(--border)] rounded-[var(--radius-lg)] p-7 flex items-center justify-between mb-10 shadow-[var(--shadow-soft)]">
-          <div>
-            <div className="text-lg font-sans font-medium mb-1">
-              Voice dictation in any app
-            </div>
-            <div className="text-sm text-[var(--color-subtext)]">
-              <span key="hold-down">Hold down the trigger key </span>
-              {keyboardShortcut.map((key, index) => (
-                <React.Fragment key={index}>
-                  <span className="bg-white border border-[var(--border)] px-1.5 py-0.5 rounded text-xs font-mono shadow-sm">
-                    {getKeyDisplay(key as KeyName, platform, {
-                      showDirectionalText: false,
-                      format: 'label',
-                    })}
-                  </span>
-                  <span>{index < keyboardShortcut.length - 1 && ' + '}</span>
-                </React.Fragment>
-              ))}
-              <span key="and"> and speak into any textbox</span>
-            </div>
-          </div>
-          <button
-            className="bg-[var(--primary)] text-[var(--primary-foreground)] px-6 py-3 rounded-[var(--radius-lg)] font-semibold hover:opacity-90 cursor-pointer transition-opacity"
-            onClick={() =>
-              window.api?.invoke('web-open-url', EXTERNAL_LINKS.WEBSITE)
-            }
+          <Card
+            className="gap-0 py-0 cursor-pointer hover:shadow-md transition-shadow duration-200 border-border/50"
+            onClick={() => setShowStatsDialog(true)}
           >
-            Explore use cases
-          </button>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Words</span>
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
+                  <Rocket size={16} weight="fill" className="text-blue-500" />
+                </div>
+              </div>
+              <div className="text-xl font-bold tracking-tight">
+                {stats.totalWords.toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="gap-0 py-0 cursor-pointer hover:shadow-md transition-shadow duration-200 border-border/50"
+            onClick={() => setShowStatsDialog(true)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Speed</span>
+                <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center">
+                  <Trophy size={16} weight="fill" className="text-amber-500" />
+                </div>
+              </div>
+              <div className="text-xl font-bold tracking-tight">
+                {stats.averageWPM} <span className="text-sm font-normal text-muted-foreground">WPM</span>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Recent Activity Header */}
-        <div className="text-xs font-semibold tracking-[1px] uppercase text-[var(--color-subtext)] mb-6">
-          Recent activity
+        <Card className="gap-0 py-0 mb-8 border-border/50 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center flex-shrink-0">
+                  <Microphone size={20} weight="fill" className="text-background" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-0.5">
+                    Voice dictation in any app
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                    <span>Hold</span>
+                    {keyboardShortcut.map((key, index) => (
+                      <React.Fragment key={index}>
+                        <kbd className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-mono font-medium bg-muted border border-border shadow-[0_1px_0_1px_var(--border)]">
+                          {getKeyDisplay(key as KeyName, platform, {
+                            showDirectionalText: false,
+                            format: 'label',
+                          })}
+                        </kbd>
+                        {index < keyboardShortcut.length - 1 && (
+                          <span className="text-muted-foreground">+</span>
+                        )}
+                      </React.Fragment>
+                    ))}
+                    <span>and speak into any textbox</span>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-1.5 rounded-lg"
+                onClick={() =>
+                  window.api?.invoke('web-open-url', EXTERNAL_LINKS.WEBSITE)
+                }
+              >
+                Use cases
+                <ArrowRight size={14} />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">
+            Recent activity
+          </span>
+          {interactions.length > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium">
+              {interactions.length}
+            </Badge>
+          )}
         </div>
       </div>
 
-      {/* Scrollable Recent Activity Section */}
-      <div className="flex-1 px-12 max-w-4xl mx-auto w-full overflow-y-auto">
+      <div className="flex-1 px-8 lg:px-12 max-w-4xl mx-auto w-full overflow-y-auto pb-10">
         {loading ? (
-          <div className="bg-white dark:bg-[var(--card)] rounded-[var(--radius-lg)] border border-[var(--border)] p-8 text-center text-[var(--color-subtext)]">
-            Loading recent activity...
-          </div>
+          <Card className="gap-0 py-0 border-border/50">
+            <CardContent className="p-8 text-center">
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                <span className="text-sm">Loading activity...</span>
+              </div>
+            </CardContent>
+          </Card>
         ) : interactions.length === 0 ? (
-          <div className="bg-white dark:bg-[var(--card)] rounded-[var(--radius-lg)] border border-[var(--border)] p-8 text-center text-[var(--color-subtext)]">
-            <p className="text-sm">No interactions yet</p>
-            <p className="text-xs mt-1">
-              Try using voice dictation by pressing{' '}
-              {keyboardShortcut.join(' + ')}
-            </p>
-          </div>
+          <Card className="gap-0 py-0 border-border/50 border-dashed">
+            <CardContent className="p-10 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                <Microphone size={24} className="text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium mb-1">No interactions yet</p>
+              <p className="text-xs text-muted-foreground">
+                Press{' '}
+                {keyboardShortcut.map((key, index) => (
+                  <React.Fragment key={index}>
+                    <kbd className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-mono bg-muted border border-border">
+                      {getKeyDisplay(key as KeyName, platform, {
+                        showDirectionalText: false,
+                        format: 'label',
+                      })}
+                    </kbd>
+                    {index < keyboardShortcut.length - 1 && ' + '}
+                  </React.Fragment>
+                ))}{' '}
+                to start dictating
+              </p>
+            </CardContent>
+          </Card>
         ) : (
-          <>
+          <div className="space-y-5">
             {Object.entries(groupedInteractions).map(
               ([dateLabel, dateInteractions]) => (
-                <div key={dateLabel} className="mb-6">
-                  <div className="text-xs font-semibold tracking-[1px] uppercase text-[var(--color-subtext)] mb-4">
+                <div key={dateLabel}>
+                  <div className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground mb-2 px-1">
                     {dateLabel}
                   </div>
-                  <div className="bg-white dark:bg-[var(--card)] rounded-[var(--radius-lg)] border border-[var(--border)] shadow-[var(--shadow-card)] divide-y divide-[var(--border)]">
-                    {dateInteractions.map(interaction => {
-                      const displayInfo = getDisplayText(interaction)
+                  <Card className="gap-0 py-0 border-border/50 overflow-hidden">
+                    <CardContent className="p-0 divide-y divide-border/50">
+                      {dateInteractions.map(interaction => {
+                        const displayInfo = getDisplayText(interaction)
 
-                      return (
-                        <div
-                          key={interaction.id}
-                          className="flex items-center justify-between px-4 py-4 gap-10 hover:bg-[var(--color-muted-bg)] transition-colors duration-200 group"
-                        >
-                          <div className="flex items-center gap-10">
-                            <div className="text-[var(--color-subtext)] text-[13px] min-w-[60px]">
-                              {formatTime(interaction.created_at)}
+                        return (
+                          <div
+                            key={interaction.id}
+                            className="flex items-start justify-between px-4 py-3.5 gap-4 hover:bg-muted/50 transition-colors duration-150 group"
+                          >
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 text-muted-foreground text-xs mt-0.5 flex-shrink-0">
+                                <Clock size={12} />
+                                <span className="tabular-nums min-w-[58px]">
+                                  {formatTime(interaction.created_at)}
+                                </span>
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                {displayInfo.isError ? (
+                                  <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                                    <WarningCircle size={14} className="flex-shrink-0 text-muted-foreground/70" />
+                                    <span>{displayInfo.text}</span>
+                                    {displayInfo.tooltip && (
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <Info size={13} className="text-muted-foreground/50" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {displayInfo.tooltip}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-foreground leading-relaxed line-clamp-2">
+                                    {displayInfo.text}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div
-                              className={`${displayInfo.isError ? 'text-[var(--color-subtext)]' : 'text-foreground'} flex items-center gap-1`}
-                            >
-                              {displayInfo.text}
-                              {displayInfo.tooltip && (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <InfoCircle className="w-4 h-4 text-[var(--color-subtext)]" />
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0 mt-0.5">
+                              {!displayInfo.isError && (
+                                <Tooltip
+                                  open={
+                                    openTooltipKey === `copy:${interaction.id}`
+                                  }
+                                  onOpenChange={open => {
+                                    if (open) {
+                                      setOpenTooltipKey(`copy:${interaction.id}`)
+                                    } else {
+                                      if (!copiedItems.has(interaction.id)) {
+                                        setOpenTooltipKey(prev =>
+                                          prev === `copy:${interaction.id}`
+                                            ? null
+                                            : prev,
+                                        )
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className={`h-7 w-7 rounded-md ${
+                                        copiedItems.has(interaction.id)
+                                          ? 'text-emerald-600'
+                                          : 'text-muted-foreground'
+                                      }`}
+                                      onClick={() =>
+                                        copyToClipboard(
+                                          displayInfo.text,
+                                          interaction.id,
+                                        )
+                                      }
+                                    >
+                                      {copiedItems.has(interaction.id) ? (
+                                        <Check size={14} weight="bold" />
+                                      ) : (
+                                        <Copy size={14} />
+                                      )}
+                                    </Button>
                                   </TooltipTrigger>
-                                  <TooltipContent>
-                                    {displayInfo.tooltip}
+                                  <TooltipContent side="top" sideOffset={5}>
+                                    {copiedItems.has(interaction.id)
+                                      ? 'Copied!'
+                                      : 'Copy'}
                                   </TooltipContent>
                                 </Tooltip>
                               )}
                             </div>
                           </div>
-
-                          {/* Copy button - only show on hover */}
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            {!displayInfo.isError && (
-                              <Tooltip
-                                open={
-                                  openTooltipKey === `copy:${interaction.id}`
-                                }
-                                onOpenChange={open => {
-                                  if (open) {
-                                    setOpenTooltipKey(`copy:${interaction.id}`)
-                                  } else {
-                                    if (!copiedItems.has(interaction.id)) {
-                                      setOpenTooltipKey(prev =>
-                                        prev === `copy:${interaction.id}`
-                                          ? null
-                                          : prev,
-                                      )
-                                    }
-                                  }
-                                }}
-                              >
-                                <TooltipTrigger asChild>
-                                  <button
-                                    className={`p-1.5 hover:bg-warm-200 rounded transition-colors cursor-pointer ${
-                                      copiedItems.has(interaction.id)
-                                        ? 'text-green-600'
-                                        : 'text-[var(--color-subtext)]'
-                                    }`}
-                                    onClick={() =>
-                                      copyToClipboard(
-                                        displayInfo.text,
-                                        interaction.id,
-                                      )
-                                    }
-                                  >
-                                    {copiedItems.has(interaction.id) ? (
-                                      <Check className="w-4 h-4" />
-                                    ) : (
-                                      <Copy className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" sideOffset={5}>
-                                  {copiedItems.has(interaction.id)
-                                    ? 'Copied 🎉'
-                                    : 'Copy'}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </CardContent>
+                  </Card>
                 </div>
               ),
             )}
             {interactions.length > visibleCount && (
-              <button
+              <Button
+                variant="ghost"
+                className="w-full text-muted-foreground hover:text-foreground"
                 onClick={() =>
                   setVisibleCount(prev => prev + INTERACTIONS_PAGE_SIZE)
                 }
-                className="w-full py-3 text-sm text-[var(--color-subtext)] hover:text-foreground transition-colors duration-200"
               >
                 Show more ({interactions.length - visibleCount} remaining)
-              </button>
+              </Button>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* Pro Upgrade Dialog */}
       <ProUpgradeDialog open={showProDialog} onOpenChange={setShowProDialog} />
 
-      {/* Stats Detail Dialog */}
       <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
-        <DialogContent className="!border-0 shadow-xl p-0 max-w-lg rounded-2xl">
+        <DialogContent className="!border-border/50 shadow-xl p-0 max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="sr-only">Your Stats</DialogTitle>
           </DialogHeader>
-          <div className="p-8">
-            <h2 className="text-xl font-bold text-center mb-1">
-              You've been Flowing. Hard.
-            </h2>
-            <p className="text-sm text-[var(--color-subtext)] text-center mb-8">
-              Here's a personal snapshot of your productivity with Ito.
-            </p>
+          <div className="p-7">
+            <div className="text-center mb-6">
+              <h2 className="text-lg font-bold mb-1">
+                You've been flowing hard
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Your productivity snapshot with Ito
+              </p>
+            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-[#F3F2F1] rounded-[var(--radius-lg)] p-5">
-                <div className="text-xs font-semibold tracking-wider text-[var(--color-subtext)] uppercase mb-3">
-                  Daily Streak
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-muted/60 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Fire size={14} weight="fill" className="text-orange-500" />
+                  <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Daily Streak
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mb-1">
-                  {stats.streakDays} {stats.streakDays === 1 ? 'day' : 'days'}{' '}
-                  🔥
+                <div className="text-2xl font-bold mb-0.5">
+                  {stats.streakDays}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    {stats.streakDays === 1 ? 'day' : 'days'}
+                  </span>
                 </div>
-                <div className="text-sm text-[var(--color-subtext)]">
+                <div className="text-xs text-muted-foreground">
                   {stats.streakDays === 0
                     ? 'Start your streak today!'
                     : stats.streakDays === 1
                       ? 'Just getting started!'
                       : stats.streakDays < 7
-                        ? `${stats.streakDays} days strong.`
+                        ? `${stats.streakDays} days strong`
                         : 'On fire! Keep going!'}
                 </div>
               </div>
 
-              <div className="bg-[#F3F2F1] rounded-[var(--radius-lg)] p-5">
-                <div className="text-xs font-semibold tracking-wider text-[var(--color-subtext)] uppercase mb-3">
-                  Average Speed
+              <div className="rounded-xl bg-muted/60 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy size={14} weight="fill" className="text-amber-500" />
+                  <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Avg Speed
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mb-1">
-                  {stats.averageWPM} WPM 🏆
+                <div className="text-2xl font-bold mb-0.5">
+                  {stats.averageWPM}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">
+                    WPM
+                  </span>
                 </div>
-                <div className="text-sm text-[var(--color-subtext)]">
+                <div className="text-xs text-muted-foreground">
                   Top performer!
                 </div>
               </div>
 
-              <div className="bg-[#F3F2F1] rounded-[var(--radius-lg)] p-5">
-                <div className="text-xs font-semibold tracking-wider text-[var(--color-subtext)] uppercase mb-3">
-                  Total Words Dictated
+              <div className="rounded-xl bg-muted/60 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Rocket size={14} weight="fill" className="text-blue-500" />
+                  <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Total Words
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mb-1">
-                  {stats.totalWords.toLocaleString()} 🚀
+                <div className="text-2xl font-bold mb-0.5">
+                  {stats.totalWords.toLocaleString()}
                 </div>
-                <div className="text-sm text-[var(--color-subtext)]">
+                <div className="text-xs text-muted-foreground">
                   {stats.totalWords < 1000
                     ? 'Getting warmed up!'
                     : stats.totalWords < 5000
-                      ? `You've written ${Math.floor(stats.totalWords / 280)} tweets!`
-                      : `That's ${Math.floor(stats.totalWords / 250)} pages of text!`}
+                      ? `${Math.floor(stats.totalWords / 280)} tweets worth!`
+                      : `${Math.floor(stats.totalWords / 250)} pages of text!`}
                 </div>
               </div>
 
-              <div className="bg-[#F3F2F1] rounded-[var(--radius-lg)] p-5">
-                <div className="text-xs font-semibold tracking-wider text-[var(--color-subtext)] uppercase mb-3">
-                  Total Interactions
+              <div className="rounded-xl bg-muted/60 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Microphone size={14} weight="fill" className="text-violet-500" />
+                  <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    Sessions
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mb-1">
-                  {interactions.length} ⭐
+                <div className="text-2xl font-bold mb-0.5">
+                  {interactions.length}
                 </div>
-                <div className="text-sm text-[var(--color-subtext)]">
+                <div className="text-xs text-muted-foreground">
                   {interactions.length < 10
                     ? 'Keep using Ito!'
-                    : 'You are almost at flow mastery!'}
+                    : 'Almost at flow mastery!'}
                 </div>
               </div>
             </div>
