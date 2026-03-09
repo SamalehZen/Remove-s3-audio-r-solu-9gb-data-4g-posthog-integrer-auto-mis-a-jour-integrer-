@@ -31,7 +31,12 @@ const mockStoreData: Record<string, any> = {
     muteAudioWhenDictating: false,
     microphoneDeviceId: 'default',
     microphoneName: 'Default Microphone',
-    keyboardShortcuts: [],
+    keyboardShortcuts: [
+      { id: 'web-shortcut-transcribe', keys: ['fn'], mode: 0 },
+      { id: 'web-shortcut-edit', keys: ['control-left', 'fn'], mode: 1 },
+      { id: 'web-shortcut-context', keys: ['option-left', 'fn'], mode: 3 },
+      { id: 'web-shortcut-agent', keys: [], mode: 0, isAgent: true },
+    ],
     translationTargetLanguage: 'en',
     translationType: 'one_way',
     translationLanguageA: 'fr',
