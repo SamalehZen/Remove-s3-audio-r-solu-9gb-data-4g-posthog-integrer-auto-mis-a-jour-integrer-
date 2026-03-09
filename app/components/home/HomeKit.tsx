@@ -259,7 +259,7 @@ export default function HomeKit() {
         </div>
       </div>
 
-      <div className="flex-1 bg-background rounded-xl my-2 mr-2 shadow-sm overflow-hidden flex flex-col border border-border">
+      <div className="flex-1 bg-background rounded-lg my-2 mr-2 shadow-sm overflow-hidden flex flex-col border border-border">
         <div className="flex-1 overflow-y-auto">{renderContent()}</div>
       </div>
 
@@ -271,7 +271,7 @@ export default function HomeKit() {
       >
         <DialogContent
           showCloseButton={false}
-          className="max-w-none sm:max-w-none w-[80vw] h-[80vh] p-0 overflow-hidden rounded-2xl border border-border bg-card shadow-[0_24px_80px_rgba(0,0,0,0.12)] grid-rows-[1fr]"
+          className="max-w-none sm:max-w-none w-[80vw] h-[80vh] p-0 overflow-hidden rounded-xl border border-border bg-card shadow-[0_24px_80px_rgba(0,0,0,0.12)] grid-rows-[1fr]"
         >
           <SettingsContent />
         </DialogContent>

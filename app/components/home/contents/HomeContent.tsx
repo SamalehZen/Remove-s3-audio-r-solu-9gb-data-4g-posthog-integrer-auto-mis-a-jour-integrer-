@@ -427,7 +427,7 @@ export default function HomeContent({
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Streak</span>
-                <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-md bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center">
                   <Fire size={16} weight="fill" className="text-orange-500" />
                 </div>
               </div>
@@ -444,7 +444,7 @@ export default function HomeContent({
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Words</span>
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-md bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center">
                   <Rocket size={16} weight="fill" className="text-indigo-500" />
                 </div>
               </div>
@@ -461,7 +461,7 @@ export default function HomeContent({
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Speed</span>
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-md bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
                   <Trophy size={16} weight="fill" className="text-emerald-500" />
                 </div>
               </div>
@@ -476,7 +476,7 @@ export default function HomeContent({
           <CardContent className="p-0">
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
                   <Microphone size={20} weight="fill" className="text-white" />
                 </div>
                 <div>
@@ -504,7 +504,7 @@ export default function HomeContent({
               </div>
               <Button
                 size="sm"
-                className="gap-1.5 rounded-lg bg-white text-indigo-600 hover:bg-white/90 font-semibold shadow-none"
+                className="gap-1.5 rounded-md bg-white text-indigo-600 hover:bg-white/90 font-semibold shadow-none"
                 onClick={() =>
                   window.api?.invoke('web-open-url', EXTERNAL_LINKS.WEBSITE)
                 }
@@ -541,7 +541,7 @@ export default function HomeContent({
         ) : interactions.length === 0 ? (
           <Card className="gap-0 py-0 border-border/50 border-dashed">
             <CardContent className="p-10 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center mx-auto mb-4">
                 <Microphone size={24} className="text-muted-foreground" />
               </div>
               <p className="text-sm font-medium mb-1">No interactions yet</p>
@@ -688,7 +688,7 @@ export default function HomeContent({
       <ProUpgradeDialog open={showProDialog} onOpenChange={setShowProDialog} />
 
       <Dialog open={showStatsDialog} onOpenChange={setShowStatsDialog}>
-        <DialogContent className="!border-border/50 shadow-xl p-0 max-w-md rounded-2xl">
+        <DialogContent className="!border-border/50 shadow-xl p-0 max-w-md rounded-xl">
           <DialogHeader>
             <DialogTitle className="sr-only">Your Stats</DialogTitle>
           </DialogHeader>
@@ -703,7 +703,7 @@ export default function HomeContent({
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-muted/60 p-4">
+              <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Fire size={14} weight="fill" className="text-orange-500" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -727,7 +727,7 @@ export default function HomeContent({
                 </div>
               </div>
 
-              <div className="rounded-xl bg-muted/60 p-4">
+              <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Trophy size={14} weight="fill" className="text-emerald-500" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -745,7 +745,7 @@ export default function HomeContent({
                 </div>
               </div>
 
-              <div className="rounded-xl bg-muted/60 p-4">
+              <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Rocket size={14} weight="fill" className="text-indigo-500" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -764,7 +764,7 @@ export default function HomeContent({
                 </div>
               </div>
 
-              <div className="rounded-xl bg-muted/60 p-4">
+              <div className="rounded-lg bg-muted/60 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Microphone size={14} weight="fill" className="text-indigo-500" />
                   <span className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
