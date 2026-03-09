@@ -184,16 +184,16 @@ export default function HomeKit() {
           <div className="flex items-center px-3 mb-8 h-10">
             <div className="w-6 flex items-center justify-center flex-shrink-0">
               <ItoIcon
-                className="w-6 text-foreground"
+                className="w-6 text-white"
                 style={{ height: '28px' }}
               />
             </div>
             <div
               className={`flex items-center gap-2 transition-opacity duration-100 ${showText ? 'opacity-100 ml-3' : 'opacity-0 w-0 overflow-hidden'}`}
             >
-              <span className="text-xl font-bold tracking-tight">ito</span>
+              <span className="text-xl font-bold tracking-tight text-white">ito</span>
               {isPro && (
-                <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] px-1.5 py-0 font-semibold">
+                <Badge className="bg-gradient-to-r from-indigo-400 to-violet-400 text-white border-0 text-[10px] px-1.5 py-0 font-semibold">
                   PRO
                 </Badge>
               )}
@@ -223,7 +223,7 @@ export default function HomeKit() {
               onClick={() => setCurrentPage('notes')}
             />
 
-            <Separator className="my-2 opacity-20" />
+            <Separator className="my-2 bg-white/10" />
 
             <NavItem
               icon={<Sparkle size={20} weight={currentPage === 'app-styling' ? 'fill' : 'regular'} />}
@@ -259,7 +259,7 @@ export default function HomeKit() {
         </div>
       </div>
 
-      <div className="flex-1 bg-background rounded-2xl my-2 mr-2 shadow-sm overflow-hidden flex flex-col border border-border/50">
+      <div className="flex-1 bg-background rounded-xl my-2 mr-2 shadow-sm overflow-hidden flex flex-col border border-border">
         <div className="flex-1 overflow-y-auto">{renderContent()}</div>
       </div>
 
