@@ -49,9 +49,6 @@ const Pill = () => {
   const phaseRef = useRef(state.phase)
   phaseRef.current = state.phase
 
-  const { showItoBarAlways, onboardingCategory, onboardingCompleted } =
-    usePillIPC(dispatch, phaseRef)
-
   const anyRecording =
     state.phase === 'recording' || state.phase === 'manualRecording'
   const isManualRecording = state.phase === 'manualRecording'
@@ -67,6 +64,15 @@ const Pill = () => {
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cssInjectedRef = useRef(false)
 
+  const handleNoInternet = useCallback(() => {
+    setErrorMessage('No internet connection')
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    errorTimerRef.current = setTimeout(() => setErrorMessage(null), 3000)
+  }, [])
+
+  const { showItoBarAlways, onboardingCategory, onboardingCompleted } =
+    usePillIPC(dispatch, phaseRef, handleNoInternet)
+
   const platform = usePlatform()
   const keyboardShortcuts = useSettingsStore(s => s.keyboardShortcuts)
   const transcribeShortcut = keyboardShortcuts.find(
@@ -78,7 +84,7 @@ const Pill = () => {
   const shouldShow =
     (onboardingCategory === ONBOARDING_CATEGORIES.TRY_IT ||
       onboardingCompleted) &&
-    (isActive || showItoBarAlways || isHovered)
+    (isActive || showItoBarAlways || isHovered || !!errorMessage)
 
   useEffect(() => {
     const idleId = requestIdleCallback(() => soundPlayer.init(), { timeout: 2000 })
@@ -121,9 +127,7 @@ const Pill = () => {
   const handleClick = useCallback(() => {
     if (!isIdle) return
     if (!navigator.onLine) {
-      setErrorMessage('No internet connection')
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-      errorTimerRef.current = setTimeout(() => setErrorMessage(null), 3000)
+      handleNoInternet()
       return
     }
     phaseRef.current = 'manualRecording'
@@ -132,7 +136,7 @@ const Pill = () => {
     analytics.track(ANALYTICS_EVENTS.MANUAL_RECORDING_STARTED, {
       is_recording: true,
     })
-  }, [isIdle, dispatch, startRecording])
+  }, [isIdle, dispatch, startRecording, handleNoInternet])
 
   const handleCancel = useCallback(
     (e: React.MouseEvent) => {
@@ -164,6 +168,10 @@ const Pill = () => {
     (e: React.KeyboardEvent) => {
       if ((e.key === 'Enter' || e.key === ' ') && isIdle) {
         e.preventDefault()
+        if (!navigator.onLine) {
+          handleNoInternet()
+          return
+        }
         phaseRef.current = 'manualRecording'
         dispatch({ type: 'MANUAL_RECORDING_START' })
         startRecording()
@@ -181,7 +189,7 @@ const Pill = () => {
         })
       }
     },
-    [isIdle, isManualRecording, dispatch, startRecording, stopRecording],
+    [isIdle, isManualRecording, dispatch, startRecording, stopRecording, handleNoInternet],
   )
 
   const getDimensions = () => {
@@ -198,7 +206,7 @@ const Pill = () => {
   const getBgColor = () => {
     if (anyRecording || isProcessing) return 'rgba(28,28,32,0.96)'
     if (isHovered) return 'rgba(36,36,42,0.95)'
-    return 'rgba(30,30,35,0.85)'
+    return 'rgba(18,18,20,0.92)'
   }
 
   const getShadow = () => {
@@ -287,7 +295,7 @@ const Pill = () => {
               )}
             </AnimatePresence>
 
-            {isIdle && !anyRecording && !isProcessing && !errorMessage && shortcutLabel && (
+            {isHovered && isIdle && !anyRecording && !isProcessing && !errorMessage && shortcutLabel && (
               <motion.div
                 key="shortcut-hint"
                 initial={{ opacity: 0 }}

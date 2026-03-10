@@ -23,6 +23,7 @@ export interface PillIPCResult {
 export function usePillIPC(
   dispatch: React.Dispatch<PillAction>,
   phaseRef: React.MutableRefObject<PillPhase>,
+  onNoInternet?: () => void,
 ): PillIPCResult {
   const initialShowItoBarAlways = useSettingsStore(s => s.showItoBarAlways)
   const initialInteractionSounds = useSettingsStore(s => s.interactionSounds)
@@ -36,6 +37,7 @@ export function usePillIPC(
 
   const interactionSoundsRef = useRef(initialInteractionSounds)
   const wasRecordingRef = useRef(false)
+  const noInternetRef = useRef(false)
 
   useEffect(() => {
     interactionSoundsRef.current = interactionSounds
@@ -48,7 +50,16 @@ export function usePillIPC(
         const wasRecording = wasRecordingRef.current
         wasRecordingRef.current = payload.isRecording
 
+        if (payload.isRecording && !navigator.onLine && phaseRef.current !== 'manualRecording') {
+          noInternetRef.current = true
+        }
+
         dispatch({ type: 'RECORDING_STATE_UPDATE', payload, wasRecording })
+
+        if (!payload.isRecording && wasRecording && noInternetRef.current) {
+          noInternetRef.current = false
+          onNoInternet?.()
+        }
 
         if (
           interactionSoundsRef.current &&
@@ -122,7 +133,7 @@ export function usePillIPC(
       unsubOnboarding()
       unsubUserAuth()
     }
-  }, [dispatch, phaseRef])
+  }, [dispatch, phaseRef, onNoInternet])
 
   return { showItoBarAlways, onboardingCategory, onboardingCompleted, interactionSounds }
 }
