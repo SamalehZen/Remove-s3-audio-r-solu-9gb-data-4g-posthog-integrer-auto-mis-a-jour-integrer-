@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useCallback } from 'react'
+import React, { useEffect, useRef, useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePerformanceStore } from '../../store/usePerformanceStore'
+import { useSettingsStore } from '../../store/useSettingsStore'
 import { X } from '@mynaui/icons-react'
 import { ONBOARDING_CATEGORIES } from '../../store/useOnboardingStore'
 import { ProcessingStatusDisplay } from './contents/AudioBarsBase'
@@ -12,6 +13,9 @@ import { soundPlayer } from '@/app/utils/soundPlayer'
 import { usePillReducer } from './hooks/usePillReducer'
 import { usePillIPC } from './hooks/usePillIPC'
 import { usePillVolume } from './hooks/usePillVolume'
+import { ItoMode } from '@/app/generated/ito_pb'
+import { getKeyDisplayInfo } from '@/lib/types/keyboard'
+import { usePlatform } from '@/app/hooks/usePlatform'
 import {
   IDLE_WIDTH,
   IDLE_HEIGHT,
@@ -59,7 +63,15 @@ const Pill = () => {
   const audioLevelRef = usePillVolume(anyRecording)
 
   const [isHovered, setIsHovered] = React.useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const cssInjectedRef = useRef(false)
+
+  const platform = usePlatform()
+  const keyboardShortcuts = useSettingsStore(s => s.keyboardShortcuts)
+  const transcribeShortcut = keyboardShortcuts.find(
+    ks => ks.mode === ItoMode.TRANSCRIBE && !ks.isAgent && ks.keys.length > 0,
+  )
 
   const blurValue = config.enableBackdropBlur ? 'blur(16px)' : 'none'
 
@@ -90,6 +102,12 @@ const Pill = () => {
     if (isIdle) dispatch({ type: 'RESET_CONTEXT' })
   }, [isIdle, dispatch])
 
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [])
+
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true)
     window.api?.send('pill-set-mouse-events', false)
@@ -102,6 +120,12 @@ const Pill = () => {
 
   const handleClick = useCallback(() => {
     if (!isIdle) return
+    if (!navigator.onLine) {
+      setErrorMessage('No internet connection')
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = setTimeout(() => setErrorMessage(null), 3000)
+      return
+    }
     phaseRef.current = 'manualRecording'
     dispatch({ type: 'MANUAL_RECORDING_START' })
     startRecording()
@@ -174,7 +198,7 @@ const Pill = () => {
   const getBgColor = () => {
     if (anyRecording || isProcessing) return 'rgba(28,28,32,0.96)'
     if (isHovered) return 'rgba(36,36,42,0.95)'
-    return 'rgba(140,140,155,0.55)'
+    return 'rgba(30,30,35,0.85)'
   }
 
   const getShadow = () => {
@@ -193,6 +217,15 @@ const Pill = () => {
     return 'rgba(200,200,210,0.1)'
   }
 
+  const shortcutLabel = transcribeShortcut
+    ? transcribeShortcut.keys
+        .map(k => {
+          const info = getKeyDisplayInfo(k, platform || 'darwin')
+          return info.symbol || info.label
+        })
+        .join(' + ')
+    : null
+
   return (
     <div
       style={{
@@ -202,7 +235,8 @@ const Pill = () => {
         right: 0,
         zIndex: 50,
         display: 'flex',
-        justifyContent: 'center',
+        flexDirection: 'column',
+        alignItems: 'center',
         pointerEvents: 'none',
       }}
     >
@@ -218,9 +252,74 @@ const Pill = () => {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
             }}
           >
+            <AnimatePresence>
+              {errorMessage && (
+                <motion.div
+                  key="error-msg"
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                  style={{
+                    background: 'rgba(28,28,32,0.96)',
+                    borderRadius: 20,
+                    padding: '8px 18px',
+                    border: '1px solid rgba(180,185,195,0.18)',
+                    backdropFilter: blurValue,
+                    WebkitBackdropFilter: blurValue,
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'rgba(255,255,255,0.9)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {errorMessage}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {isIdle && !anyRecording && !isProcessing && !errorMessage && shortcutLabel && (
+              <motion.div
+                key="shortcut-hint"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  background: 'rgba(28,28,32,0.96)',
+                  borderRadius: 20,
+                  padding: '8px 18px',
+                  border: '1px solid rgba(180,185,195,0.18)',
+                  backdropFilter: blurValue,
+                  WebkitBackdropFilter: blurValue,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'rgba(200,205,215,0.8)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Click or hold{' '}
+                  <span style={{ color: 'rgba(200,140,220,0.95)', fontWeight: 600 }}>
+                    {shortcutLabel}
+                  </span>{' '}
+                  to start dictating
+                </span>
+              </motion.div>
+            )}
             <div
               style={{
                 position: 'relative',

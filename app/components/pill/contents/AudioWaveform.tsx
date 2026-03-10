@@ -17,9 +17,9 @@ const WAVE_CONFIG = [
   { frequency: 1.1, multiplier: 0.85, phaseOffset: 1.5, opacity: 0.35 },
 ]
 
-const LEVEL_SMOOTHING = 0.14
-const TARGET_DECAY_PER_FRAME = 0.988
-const PHASE_SPEED = 0.035
+const LEVEL_SMOOTHING = 0.3
+const TARGET_DECAY_PER_FRAME = 0.975
+const PHASE_SPEED = 0.05
 
 function createSmoothWavePath(
   width: number,
@@ -72,10 +72,10 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
     if (!active) return
     const level = audioLevelRef ? audioLevelRef.current : audioLevel
     if (level <= 0) return
-    const boosted = Math.min(1, Math.sqrt(level) * 1.4)
+    const boosted = Math.min(1, Math.pow(level, 0.35) * 2.2)
     stateRef.current.targetLevel = Math.min(
       1,
-      stateRef.current.targetLevel * 0.2 + boosted * 0.8,
+      stateRef.current.targetLevel * 0.1 + boosted * 0.9,
     )
   }, [audioLevel, active, audioLevelRef])
 
@@ -101,7 +101,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
 
       const s = stateRef.current
       const baseline = height / 2
-      const maxAmplitude = baseline * 0.75
+      const maxAmplitude = baseline * 0.92
 
       if (processing && !active) {
         s.targetLevel = Math.max(s.targetLevel, 0.14)
@@ -110,8 +110,8 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       if (audioLevelRef && active) {
         const level = audioLevelRef.current
         if (level > 0) {
-          const boosted = Math.min(1, Math.sqrt(level) * 1.4)
-          s.targetLevel = Math.min(1, s.targetLevel * 0.2 + boosted * 0.8)
+          const boosted = Math.min(1, Math.pow(level, 0.35) * 2.2)
+          s.targetLevel = Math.min(1, s.targetLevel * 0.1 + boosted * 0.9)
         }
       }
 

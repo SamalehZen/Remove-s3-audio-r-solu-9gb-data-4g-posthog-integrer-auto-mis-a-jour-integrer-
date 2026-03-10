@@ -556,31 +556,7 @@ export default function AdvancedSettingsContent() {
                 </p>
               </div>
 
-              {/* Fast Prompt */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
-                  Fast Prompt
-                </label>
-                <textarea
-                  value={llm?.sonioxFastPrompt ?? ''}
-                  onChange={(e) => {
-                    const update = { sonioxFastPrompt: e.target.value }
-                    setLlmSettings(update)
-                    scheduleAdvancedSettingsUpdate(
-                      { ...llm, ...update },
-                      grammarServiceEnabled,
-                      macosAccessibilityContextEnabled,
-                    )
-                  }}
-                  className="w-full ml-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent resize-y"
-                  rows={6}
-                  maxLength={1500}
-                  placeholder="Enter a minimal transcription prompt..."
-                />
-                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
-                  Keep this short for maximum speed. Leave empty to use the default prompt.
-                </p>
-              </div>
+
             </>
           )}
         </div>
