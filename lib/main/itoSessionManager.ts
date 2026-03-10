@@ -20,6 +20,7 @@ import { audioRecorderService } from '../media/audio'
 import { unmuteSystemAudio } from '../media/systemAudio'
 import { itoHttpClient } from '../clients/itoHttpClient'
 import { STORE_KEYS } from '../constants/store-keys'
+import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults'
 import { customModeResolver } from './context/CustomModeResolver'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
@@ -574,7 +575,47 @@ export class ItoSessionManager {
         textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
       }
 
-      const { grammarServiceEnabled } = getAdvancedSettings()
+      const advSettings = getAdvancedSettings()
+
+      const sonioxFastEnabled = advSettings.llm?.sonioxFastLlmEnabled
+      if (sonioxFastEnabled && textToInsert.trim().length > 0) {
+        try {
+          const fastProvider = advSettings.llm?.sonioxFastLlmProvider || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmProvider
+          const fastModel = advSettings.llm?.sonioxFastLlmModel || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmModel
+          const fastPrompt = (advSettings.llm?.sonioxFastPrompt && advSettings.llm.sonioxFastPrompt.trim())
+            ? advSettings.llm.sonioxFastPrompt
+            : DEFAULT_ADVANCED_SETTINGS.sonioxFastPrompt
+
+          const fastRequestBody: Record<string, any> = {
+            transcript: textToInsert,
+            mode: 'transcribe',
+            llmSettings: {
+              llmProvider: fastProvider,
+              llmModel: fastModel || undefined,
+              llmTemperature: 0.1,
+              transcriptionPrompt: fastPrompt,
+            },
+          }
+          if (ctx?.userDetails) {
+            fastRequestBody.context = {
+              userDetailsContext: this.buildUserDetailsContextString(ctx.userDetails),
+            }
+          }
+          const fastResponse = await itoHttpClient.post(
+            '/adjust-transcript',
+            fastRequestBody,
+            { requireAuth: true, timeoutMs: 5000 },
+          )
+          if (fastResponse?.success && fastResponse?.transcript) {
+            textToInsert = fastResponse.transcript
+            console.log('[itoSessionManager] Soniox Fast Mode LLM applied successfully')
+          }
+        } catch (error) {
+          console.error('[itoSessionManager] Soniox Fast Mode LLM failed, using raw transcript:', error)
+        }
+      }
+
+      const { grammarServiceEnabled } = advSettings
       if (grammarServiceEnabled) {
         textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
         textToInsert =
@@ -643,6 +684,68 @@ export class ItoSessionManager {
       const { llm } = getAdvancedSettings()
       const ctx = this.sonioxContext
 
+      if (mode === ItoMode.CONTEXT_AWARENESS && ctx?.screenCaptureBase64) {
+        const lightBody: Record<string, any> = {
+          transcript: rawTranscript,
+          screenshotBase64: ctx.screenCaptureBase64,
+          screenshotMimeType: ctx.screenCaptureMimeType || 'image/jpeg',
+          llmSettings: {
+            llmTemperature: llm?.llmTemperature ?? undefined,
+            visionModel: llm?.visionModel || undefined,
+          },
+          context: {
+            windowTitle: ctx.windowTitle || '',
+            appName: ctx.appName || '',
+            browserUrl: ctx.browserUrl || undefined,
+            tonePrompt: ctx.tone?.promptTemplate || undefined,
+            userDetailsContext: ctx.userDetails
+              ? this.buildUserDetailsContextString(ctx.userDetails)
+              : undefined,
+          },
+        }
+
+        try {
+          const lightResponse = await itoHttpClient.post(
+            '/adjust-context-light',
+            lightBody,
+            { requireAuth: true, timeoutMs: 5000 },
+          )
+          if (lightResponse?.success && lightResponse?.transcript) {
+            let textToInsert = lightResponse.transcript
+
+            if (ctx?.replacements && ctx.replacements.length > 0) {
+              textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+            }
+
+            const { grammarServiceEnabled } = getAdvancedSettings()
+            if (grammarServiceEnabled) {
+              textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+              textToInsert =
+                this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+            }
+
+            this.textInserter.insertText(textToInsert)
+
+            try {
+              await interactionManager.createInteraction(
+                rawTranscript,
+                Buffer.alloc(0),
+                16000,
+                undefined,
+              )
+            } catch (error) {
+              console.error('[itoSessionManager] Failed to create interaction:', error)
+            }
+
+            allowAppNap()
+            this.cleanupSonioxState()
+            return
+          }
+        } catch (lightError) {
+          console.error('[itoSessionManager] adjust-context-light failed, falling back to adjust-transcript:', lightError)
+        }
+      }
+
       const requestBody: Record<string, any> = {
         transcript: rawTranscript,
         mode:
@@ -659,6 +762,7 @@ export class ItoSessionManager {
           llmTemperature: llm?.llmTemperature ?? undefined,
           transcriptionPrompt: llm?.transcriptionPrompt || undefined,
           editingPrompt: llm?.editingPrompt || undefined,
+          visionModel: llm?.visionModel || undefined,
         },
       }
 

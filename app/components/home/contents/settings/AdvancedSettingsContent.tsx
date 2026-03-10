@@ -29,6 +29,18 @@ const floatLengthLimit = 4
 const asrPromptLengthLimit = 100
 const llmPromptLengthLimit = 1500
 
+const FAST_DEFAULT_MODELS_BY_PROVIDER: Record<string, string> = {
+  cerebras: 'llama-3.3-70b',
+  groq: 'llama-3.1-8b-instant',
+  gemini: 'gemini-3.1-flash-lite-preview',
+}
+
+const VISION_MODEL_OPTIONS = [
+  { value: 'gemini-3.1-flash-lite-preview', label: 'gemini-3.1-flash-lite-preview (défaut, le plus rapide)' },
+  { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (plus lent, ancienne valeur par défaut)' },
+  { value: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
+]
+
 const DEFAULT_MODELS_BY_PROVIDER: Record<
   string,
   { asrModel?: string; llmModel?: string }
@@ -39,7 +51,7 @@ const DEFAULT_MODELS_BY_PROVIDER: Record<
   },
   gemini: {
     asrModel: 'gemini-2.5-flash-lite',
-    llmModel: 'gemini-2.5-flash-lite',
+    llmModel: 'gemini-3.1-flash-lite-preview',
   },
   cerebras: {
     llmModel: 'llama-3.3-70b',
@@ -128,11 +140,13 @@ const llmSettingsConfig: LlmSettingConfig[] = [
   },
 ]
 
-function formatDisplayValue(value: string | number | null): string {
+function formatDisplayValue(value: string | number | boolean | null): string {
   if (value === null) {
     return ''
   }
-  // If its a number then format it to 2 decimal places
+  if (typeof value === 'boolean') {
+    return String(value)
+  }
   if (typeof value === 'number') {
     return value.toFixed(2)
   }
@@ -141,7 +155,7 @@ function formatDisplayValue(value: string | number | null): string {
 
 interface SettingInputProps {
   config: LlmSettingConfig
-  value: string | number | null
+  value: string | number | boolean | null
   onChange: (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     config: LlmSettingConfig,
@@ -236,7 +250,7 @@ export default function AdvancedSettingsContent() {
 
   // Helper to resolve null to actual default value for display
   const getDisplayValue = useCallback(
-    (key: keyof LlmSettings): string | number | null => {
+    (key: keyof LlmSettings): string | number | boolean | null => {
       const value = llm[key]
       if (value === null && defaults) {
         return defaults[key] ?? null
@@ -377,6 +391,11 @@ export default function AdvancedSettingsContent() {
       transcriptionPrompt: null,
       editingPrompt: null,
       noSpeechThreshold: null,
+      sonioxFastLlmEnabled: null,
+      sonioxFastLlmProvider: null,
+      sonioxFastLlmModel: null,
+      sonioxFastPrompt: null,
+      visionModel: null,
     }
     setLlmSettings(defaultLlmSettings)
     scheduleAdvancedSettingsUpdate(
@@ -439,6 +458,143 @@ export default function AdvancedSettingsContent() {
               </span>
             </span>
           </label>
+        </div>
+
+        {/* ── Soniox Fast Mode ── */}
+        <div className="mt-6 pt-4 border-t border-[var(--border)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">
+            Soniox Fast Mode
+          </h3>
+          <p className="text-[13px] text-[var(--color-subtext)] mb-4">
+            Adds a lightweight LLM pass to Soniox TRANSCRIBE (no custom mode). 
+            Uses a minimal prompt for speed. Target: &lt;1.85s total.
+          </p>
+
+          {/* Toggle enable/disable */}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text)]">Enable Fast LLM</p>
+              <p className="text-[13px] text-[var(--color-subtext)]">
+                Apply a fast LLM pass after Soniox transcription
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={!!(llm?.sonioxFastLlmEnabled)}
+              onChange={(e) => {
+                const checked = e.target.checked
+                const update: Partial<LlmSettings> = { sonioxFastLlmEnabled: checked }
+                if (checked && !llm?.sonioxFastLlmProvider) {
+                  update.sonioxFastLlmProvider = 'cerebras'
+                  update.sonioxFastLlmModel = FAST_DEFAULT_MODELS_BY_PROVIDER['cerebras']
+                }
+                setLlmSettings(update)
+                scheduleAdvancedSettingsUpdate(
+                  { ...llm, ...update },
+                  grammarServiceEnabled,
+                  macosAccessibilityContextEnabled,
+                )
+              }}
+              className="h-4 w-4 accent-[var(--ring)]"
+            />
+          </div>
+
+          {/* Only show the rest if enabled */}
+          {llm?.sonioxFastLlmEnabled && (
+            <>
+              {/* Provider */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                  Fast LLM Provider
+                </label>
+                <select
+                  value={llm?.sonioxFastLlmProvider ?? 'cerebras'}
+                  onChange={(e) => {
+                    const provider = e.target.value
+                    const autoModel = FAST_DEFAULT_MODELS_BY_PROVIDER[provider] ?? ''
+                    const update = { sonioxFastLlmProvider: provider, sonioxFastLlmModel: autoModel }
+                    setLlmSettings(update)
+                    scheduleAdvancedSettingsUpdate(
+                      { ...llm, ...update },
+                      grammarServiceEnabled,
+                      macosAccessibilityContextEnabled,
+                    )
+                  }}
+                  className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                >
+                  <option value="cerebras">cerebras</option>
+                  <option value="groq">groq</option>
+                  <option value="gemini">gemini</option>
+                </select>
+                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                  Cerebras is the fastest (~100-300ms). Groq is also fast (~200-400ms).
+                </p>
+              </div>
+
+              {/* Model */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                  Fast LLM Model
+                </label>
+                <input
+                  value={llm?.sonioxFastLlmModel ?? ''}
+                  onChange={(e) => {
+                    const update = { sonioxFastLlmModel: e.target.value }
+                    setLlmSettings(update)
+                    scheduleAdvancedSettingsUpdate(
+                      { ...llm, ...update },
+                      grammarServiceEnabled,
+                      macosAccessibilityContextEnabled,
+                    )
+                  }}
+                  className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                  placeholder="e.g. llama-3.3-70b"
+                  maxLength={30}
+                />
+                <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                  Auto-populated when you change the provider above.
+                </p>
+              </div>
+
+
+            </>
+          )}
+        </div>
+
+        {/* ── Vision Model ── */}
+        <div className="mt-6 pt-4 border-t border-[var(--border)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">
+            Vision Model (CONTEXT_AWARENESS)
+          </h3>
+          <p className="text-[13px] text-[var(--color-subtext)] mb-4">
+            Modèle Gemini utilisé pour l'analyse de capture d'écran. 
+            gemini-3.1-flash-lite-preview est le plus rapide (~0.5–1s).
+          </p>
+          <div className="mb-2">
+            <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+              Modèle Vision
+            </label>
+            <select
+              value={llm?.visionModel ?? 'gemini-3.1-flash-lite-preview'}
+              onChange={(e) => {
+                const update = { visionModel: e.target.value }
+                setLlmSettings(update)
+                scheduleAdvancedSettingsUpdate(
+                  { ...llm, ...update },
+                  grammarServiceEnabled,
+                  macosAccessibilityContextEnabled,
+                )
+              }}
+              className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+            >
+              {VISION_MODEL_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+              Configurable uniquement pour le chemin Soniox ASR. Le chemin gRPC (Groq/Gemini ASR) utilise le modèle par défaut.
+            </p>
+          </div>
         </div>
 
         {windowContext?.window?.platform === 'darwin' && (

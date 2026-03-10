@@ -388,6 +388,10 @@ export class TranscribeStreamV2Handler {
         noSpeechThreshold,
         DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold,
       ),
+      visionModel: this.resolveOrDefault(
+        mergedConfig.llmSettings?.visionModel,
+        DEFAULT_ADVANCED_SETTINGS.visionModel,
+      ),
     }
   }
 
@@ -486,15 +490,23 @@ export class TranscribeStreamV2Handler {
 
             const visionResult = await serverTimingCollector.timeAsync(
               ServerTimingEventName.LLM_ADJUSTMENT,
-              () => geminiClient.analyzeScreenContext(
-                windowContext.screenCaptureBase64,
-                transcript,
-                enrichedSystemPrompt,
-                {
-                  temperature: advancedSettings.llmTemperature,
-                  model: 'gemini-2.5-flash',
-                },
-              ),
+              () => {
+                const screenshotData = windowContext.screenCaptureBase64
+                const detectedMimeType = screenshotData.startsWith('/9j/')
+                  ? 'image/jpeg'
+                  : 'image/png'
+                return geminiClient.analyzeScreenContext(
+                  screenshotData,
+                  transcript,
+                  enrichedSystemPrompt,
+                  {
+                    temperature: advancedSettings.llmTemperature,
+                    model: advancedSettings.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
+                    mimeType: detectedMimeType,
+                    maxOutputTokens: 1024,
+                  },
+                )
+              },
             )
 
             console.log(

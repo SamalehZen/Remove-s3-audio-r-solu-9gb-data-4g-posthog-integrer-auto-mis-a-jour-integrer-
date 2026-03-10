@@ -14,7 +14,7 @@ import {
 import { getBrowserUrl } from '../../media/browser-url'
 import { canGetContextFromCurrentApp } from '../../utils/applicationDetection'
 import log from 'electron-log'
-import { captureScreen, CaptureMode } from '../../media/screenCapture'
+import { captureScreen, CaptureMode, ScreenCaptureOptions } from '../../media/screenCapture'
 import { STORE_KEYS } from '../../constants/store-keys'
 import { activeWindowMonitor } from '../ActiveWindowMonitor'
 
@@ -46,6 +46,7 @@ export interface ContextData {
   tone: Tone | null
   screenCaptureBase64: string | null
   screenThumbnailBase64: string | null
+  screenCaptureMimeType: string | null
   contextSource: 'screen' | 'selection' | null
 }
 
@@ -106,6 +107,7 @@ export class ContextGrabber {
     let contextText = ''
     let screenCaptureBase64: string | null = null
     let screenThumbnailBase64: string | null = null
+    let screenCaptureMimeType: string | null = null
     let contextSource: 'screen' | 'selection' | null = null
 
     if (mode === ItoMode.CONTEXT_AWARENESS) {
@@ -119,13 +121,20 @@ export class ContextGrabber {
         const captureMode: CaptureMode =
           settings?.contextAwarenessCaptureMode || 'fullscreen'
 
-        const capture = await captureScreen(captureMode)
+        const captureOptions: ScreenCaptureOptions = {
+          format: 'jpeg',
+          quality: 80,
+          maxWidth: 1280,
+        }
+
+        const capture = await captureScreen(captureMode, captureOptions)
         if (capture) {
           screenCaptureBase64 = capture.base64
           screenThumbnailBase64 = capture.thumbnailBase64
+          screenCaptureMimeType = capture.mimeType
           contextSource = 'screen'
           console.log(
-            `[ContextGrabber] CONTEXT_AWARENESS captured ${captureMode}: ${capture.width}x${capture.height}`,
+            `[ContextGrabber] CONTEXT_AWARENESS captured ${captureMode} (${capture.mimeType}): ${capture.width}x${capture.height}`,
           )
         }
       }
@@ -167,6 +176,7 @@ export class ContextGrabber {
       tone: effectiveTone,
       screenCaptureBase64,
       screenThumbnailBase64,
+      screenCaptureMimeType,
       contextSource,
     }
   }

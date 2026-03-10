@@ -115,6 +115,7 @@ const mockContextGrabber = {
       },
       screenCaptureBase64: null,
       screenThumbnailBase64: null,
+      screenCaptureMimeType: null,
       contextSource: null,
     }),
   ),

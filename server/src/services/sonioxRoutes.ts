@@ -30,6 +30,7 @@ interface AdjustTranscriptBody {
     llmTemperature?: number
     transcriptionPrompt?: string
     editingPrompt?: string
+    visionModel?: string
   }
   replacements?: Array<{
     fromText: string
@@ -118,6 +119,7 @@ export const registerSonioxRoutes = async (
         transcriptionPrompt: body.llmSettings?.transcriptionPrompt || DEFAULT_ADVANCED_SETTINGS.transcriptionPrompt,
         editingPrompt: body.llmSettings?.editingPrompt || DEFAULT_ADVANCED_SETTINGS.editingPrompt,
         noSpeechThreshold: DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold,
+        visionModel: body.llmSettings?.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
       }
 
       const hasTonePrompt = windowContext.tonePrompt && windowContext.tonePrompt.trim() !== ''
@@ -185,13 +187,20 @@ export const registerSonioxRoutes = async (
                 `[adjust-transcript] Gemini Vision attempt ${attempt}/${MAX_VISION_RETRIES}`,
               )
 
+              const screenshotData = windowContext.screenCaptureBase64
+              const detectedMimeType = screenshotData.startsWith('/9j/')
+                ? 'image/jpeg'
+                : 'image/png'
+
               const visionResult = await geminiClient.analyzeScreenContext(
-                windowContext.screenCaptureBase64,
+                screenshotData,
                 trimmedTranscript,
                 enrichedSystemPrompt,
                 {
                   temperature: advancedSettings.llmTemperature,
-                  model: 'gemini-2.5-flash',
+                  model: advancedSettings.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel,
+                  mimeType: detectedMimeType,
+                  maxOutputTokens: 1024,
                 },
               )
 
@@ -285,6 +294,107 @@ export const registerSonioxRoutes = async (
       reply.code(500).send({
         success: false,
         error: error?.message || 'Failed to adjust transcript',
+      })
+    }
+  })
+
+  fastify.post('/adjust-context-light', async (request, reply) => {
+    try {
+      const user = (request as any).user as SupabaseJwtPayload | undefined
+      if (requireAuth && !user?.sub) {
+        reply.code(401).send({ success: false, error: 'Unauthorized' })
+        return
+      }
+
+      const body = request.body as {
+        transcript: string
+        screenshotBase64: string
+        screenshotMimeType?: string
+        context?: {
+          windowTitle?: string
+          appName?: string
+          browserUrl?: string
+          tonePrompt?: string
+          userDetailsContext?: string
+        }
+        llmSettings?: {
+          llmTemperature?: number
+          visionModel?: string
+        }
+      }
+
+      if (!body?.transcript || typeof body.transcript !== 'string') {
+        reply.code(400).send({ success: false, error: 'Missing transcript field' })
+        return
+      }
+      if (!body?.screenshotBase64 || body.screenshotBase64.length < 100) {
+        reply.code(400).send({ success: false, error: 'Missing or invalid screenshotBase64' })
+        return
+      }
+
+      const trimmedTranscript = body.transcript.trim()
+      if (trimmedTranscript.length < 2) {
+        reply.send({ success: true, transcript: trimmedTranscript })
+        return
+      }
+
+      const visionModel = body.llmSettings?.visionModel || DEFAULT_ADVANCED_SETTINGS.visionModel
+      const temperature = body.llmSettings?.llmTemperature ?? DEFAULT_ADVANCED_SETTINGS.llmTemperature
+      const mimeType = body.screenshotMimeType || 'image/jpeg'
+
+      const hasTonePrompt = body.context?.tonePrompt && body.context.tonePrompt.trim() !== ''
+      const caBasePrompt = getPromptForMode(ItoMode.CONTEXT_AWARENESS, DEFAULT_ADVANCED_SETTINGS as any)
+
+      const baseSystemPrompt = hasTonePrompt
+        ? body.context!.tonePrompt!
+        : caBasePrompt
+
+      const contextParts = [
+        body.context?.userDetailsContext && `INFORMATIONS UTILISATEUR:\n${body.context.userDetailsContext}`,
+        body.context?.appName && `Application active: ${body.context.appName}`,
+        body.context?.windowTitle && `Titre de fenêtre: ${body.context.windowTitle}`,
+        body.context?.browserUrl && `URL: ${body.context.browserUrl}`,
+      ].filter(Boolean).join('\n')
+
+      const enrichedSystemPrompt = contextParts
+        ? `${baseSystemPrompt}\n\nCONTEXTE ADDITIONNEL:\n${contextParts}`
+        : baseSystemPrompt
+
+      console.log(
+        `[adjust-context-light] model=${visionModel}, mimeType=${mimeType}, screenshot=${Math.round(body.screenshotBase64.length / 1024)}KB, command="${trimmedTranscript}"`,
+      )
+
+      const { geminiClient } = await import('../clients/geminiClient.js')
+
+      if (!geminiClient || typeof geminiClient.analyzeScreenContext !== 'function') {
+        reply.code(503).send({ success: false, error: 'Gemini Vision not available' })
+        return
+      }
+
+      const visionResult = await geminiClient.analyzeScreenContext(
+        body.screenshotBase64,
+        trimmedTranscript,
+        enrichedSystemPrompt,
+        {
+          temperature,
+          model: visionModel,
+          mimeType,
+          maxOutputTokens: 1024,
+        },
+      )
+
+      const cleaned = filterLeakedContext(visionResult.trim())
+
+      console.log(
+        `[adjust-context-light] Vision success: ${cleaned.length} chars`,
+      )
+
+      reply.send({ success: true, transcript: cleaned })
+    } catch (error: any) {
+      console.error('[adjust-context-light] Failed:', error?.message || error)
+      reply.code(500).send({
+        success: false,
+        error: error?.message || 'Vision analysis failed',
       })
     }
   })

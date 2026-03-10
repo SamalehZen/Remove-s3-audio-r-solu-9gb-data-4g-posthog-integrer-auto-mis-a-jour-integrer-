@@ -145,14 +145,14 @@ class GeminiClient implements LlmProvider {
     }
 
     console.log(
-      `[GeminiClient] analyzeScreenContext called - screenshot: ${Math.round(screenshotBase64.length / 1024)}KB, command: "${voiceCommand}", model: ${options?.model || 'gemini-2.5-flash'}`,
+      `[GeminiClient] analyzeScreenContext called - screenshot: ${Math.round(screenshotBase64.length / 1024)}KB, command: "${voiceCommand}", model: ${options?.model || 'gemini-3.1-flash-lite-preview'}, mimeType: ${options?.mimeType || 'image/png'}`,
     )
 
     try {
       const parts: Array<{ inlineData?: { mimeType: string; data: string }; text?: string }> = [
         {
           inlineData: {
-            mimeType: 'image/png',
+            mimeType: options?.mimeType || 'image/png',
             data: screenshotBase64,
           },
         },
@@ -162,7 +162,7 @@ class GeminiClient implements LlmProvider {
       ]
 
       const response = await this._client.models.generateContent({
-        model: options?.model || 'gemini-2.5-flash',
+        model: options?.model || 'gemini-3.1-flash-lite-preview',
         contents: [
           {
             role: 'user',
@@ -172,6 +172,7 @@ class GeminiClient implements LlmProvider {
         config: {
           systemInstruction: systemPrompt,
           temperature: options?.temperature ?? 0.3,
+          maxOutputTokens: options?.maxOutputTokens ?? 1024,
         },
       })
 
@@ -221,7 +222,7 @@ let geminiClient: GeminiClient | null = null
 
 if (apiKey) {
   try {
-    geminiClient = new GeminiClient(apiKey, 'gemini-2.5-flash-lite')
+    geminiClient = new GeminiClient(apiKey, 'gemini-3.1-flash-lite-preview')
     console.log('Gemini client initialized successfully')
   } catch (error) {
     console.error('Failed to initialize Gemini client:', error)

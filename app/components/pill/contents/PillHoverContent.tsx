@@ -1,6 +1,5 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ItoIcon } from '../../icons/ItoIcon'
 import { CONTENT_EXIT } from '../constants'
 
 const contentAbsolute: React.CSSProperties = {
@@ -20,12 +19,6 @@ export const PillHoverContent: React.FC = () => (
     transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
     style={{ ...contentAbsolute, gap: 8, padding: '0 12px' }}
   >
-    <ItoIcon
-      width={16}
-      height={16}
-      className="text-white"
-      style={{ opacity: 0.7, flexShrink: 0 }}
-    />
     <span
       style={{
         fontSize: 11,

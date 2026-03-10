@@ -35,6 +35,15 @@ export const DEFAULT_ADVANCED_SETTINGS = {
   
   // Audio quality thresholds
   noSpeechThreshold: ${DEFAULT_ADVANCED_SETTINGS.noSpeechThreshold},
+
+  // Soniox Fast Mode LLM settings
+  sonioxFastLlmEnabled: ${DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmEnabled},
+  sonioxFastLlmProvider: '${DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmProvider}',
+  sonioxFastLlmModel: '${DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmModel}',
+  sonioxFastPrompt: \`${DEFAULT_ADVANCED_SETTINGS.sonioxFastPrompt.replace(/`/g, '\\`')}\`,
+
+  // Vision model for CONTEXT_AWARENESS
+  visionModel: '${DEFAULT_ADVANCED_SETTINGS.visionModel}',
 } as const;
 `
 

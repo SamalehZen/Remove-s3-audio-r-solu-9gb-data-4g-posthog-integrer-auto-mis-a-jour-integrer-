@@ -129,17 +129,9 @@ function checkForStuckKeys() {
 
     if (activeShortcutId !== null) {
       const { keyboardShortcuts } = store.get(STORE_KEYS.SETTINGS)
-      const activeShortcut = keyboardShortcuts
-        .filter(ks => ks.keys.length > 0)
-        .find(shortcut => {
-          const normalizedShortcutKeys = shortcut.keys.map(normalizeLegacyKey)
-          const hasAllKeys = normalizedShortcutKeys.every(key =>
-            pressedKeys.has(key),
-          )
-          const exactMatch =
-            normalizedShortcutKeys.length === pressedKeys.size && hasAllKeys
-          return exactMatch
-        })
+      const activeShortcut = keyboardShortcuts.find(
+        ks => ks.id === activeShortcutId,
+      )
 
       // Don't remove the stuck key if it's part of the currently active shortcut
       if (
@@ -266,10 +258,18 @@ async function handleKeyEventInMain(event: KeyEvent) {
       )
       itoSessionManager.setMode(currentlyHeldShortcut.mode)
     }
-  } else if (!currentlyHeldShortcut) {
-    // No shortcut detected - cancel pending activation or deactivate active shortcut
-    if (activeShortcutId !== null) {
-      // Shortcut released - deactivate immediately (no debounce on release)
+  } else if (!currentlyHeldShortcut && activeShortcutId !== null) {
+    // No exact shortcut match - check if the active shortcut's own keys are still held
+    const activeConfig = keyboardShortcuts.find(
+      ks => ks.id === activeShortcutId,
+    )
+    const activeKeys = activeConfig?.keys.map(normalizeLegacyKey) || []
+    const allShortcutKeysStillPressed = activeKeys.every(k =>
+      pressedKeys.has(k),
+    )
+
+    if (!allShortcutKeysStillPressed) {
+      // One of the shortcut's own keys was actually released - deactivate
       activeShortcutId = null
       console.info('lib Shortcut DEACTIVATED, stopping recording...')
       if (activeIsAgent) {
@@ -279,6 +279,8 @@ async function handleKeyEventInMain(event: KeyEvent) {
       }
       activeIsAgent = false
     }
+    // If all shortcut keys are still held but extra keys are also pressed,
+    // keep the shortcut active (don't deactivate due to extra keys)
   }
 }
 
