@@ -9,7 +9,7 @@ export class SonioxTempKeyManager {
   // [FIX-1] Force key rotation after 10 min OR 20 sessions — whichever comes first.
   // Observed: firstTokenLatency degrades from ~250ms to ~1500ms after 40+ sessions on same key.
   // These thresholds prevent accumulation-based degradation with minimal backend overhead.
-  private readonly MAX_SESSIONS_PER_KEY = 20
+  private readonly MAX_SESSIONS_PER_KEY = 10
   private readonly KEY_MAX_AGE_MS = 10 * 60 * 1000 // 10 minutes
 
   // [FINDING-4] Tracker du nombre de sessions utilisant la même clé temporaire

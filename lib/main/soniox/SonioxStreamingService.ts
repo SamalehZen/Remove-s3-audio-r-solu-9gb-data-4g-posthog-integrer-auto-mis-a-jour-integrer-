@@ -34,7 +34,7 @@ export class SonioxStreamingService extends EventEmitter {
   private accumulatedText = ''
   private hasErrored = false
   private isTranslationMode = false
-  private static readonly FINISH_TIMEOUT_MS = 8000
+  private static readonly FINISH_TIMEOUT_MS = 15000
 
   // ── Diagnostic state ────────────────────────────────────────────────────────
   private sessionId = ''
