@@ -42,7 +42,7 @@ async function parallelLimit<T>(
   return results
 }
 
-const SYNC_CONCURRENCY = 5
+const SYNC_CONCURRENCY = 1
 
 const LAST_SYNCED_AT_KEY = 'lastSyncedAt'
 
