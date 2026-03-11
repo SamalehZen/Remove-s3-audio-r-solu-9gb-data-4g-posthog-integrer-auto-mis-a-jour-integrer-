@@ -34,6 +34,7 @@ export class SonioxStreamingService extends EventEmitter {
   private accumulatedText = ''
   private hasErrored = false
   private isTranslationMode = false
+  private isStopping = false
   private static readonly FINISH_TIMEOUT_MS = 3000
 
   async start(
@@ -54,6 +55,7 @@ export class SonioxStreamingService extends EventEmitter {
     this.accumulatedText = ''
     this.hasErrored = false
     this.isTranslationMode = !!translationConfig
+    this.isStopping = false
     this.client = new SonioxNodeClient({ api_key: tempApiKey })
 
     const sessionConfig: any = {
@@ -142,7 +144,26 @@ export class SonioxStreamingService extends EventEmitter {
       this.emit('finished')
     })
 
+    this.session.on('disconnected', (reason?: string) => {
+      if (this.isStopping || this.hasErrored) {
+        return
+      }
+
+      const message = reason
+        ? `Session disconnected unexpectedly: ${reason}`
+        : 'Session disconnected unexpectedly'
+
+      console.warn(
+        '[SonioxStreaming] Session disconnected:',
+        reason || 'unknown',
+      )
+      this.hasErrored = true
+      this.isActive = false
+      this.safeEmitError(new Error(message))
+    })
+
     this.session.on('error', (error: Error) => {
+      if (this.isStopping) return
       console.error('[SonioxStreaming] Session error:', error.message)
       this.hasErrored = true
       this.isActive = false
@@ -186,9 +207,12 @@ export class SonioxStreamingService extends EventEmitter {
 
   async stop(): Promise<string> {
     if (!this.session) {
+      this.isStopping = false
       this.removeAllListeners()
       return this.accumulatedText
     }
+
+    this.isStopping = true
 
     try {
       if (!this.hasErrored) {
@@ -221,6 +245,8 @@ export class SonioxStreamingService extends EventEmitter {
     const finalText = this.accumulatedText
 
     this.isTranslationMode = false
+    this.hasErrored = false
+    this.isStopping = false
     this.session = null
     this.client = null
     this.removeAllListeners()
@@ -230,9 +256,11 @@ export class SonioxStreamingService extends EventEmitter {
 
   cancel(): void {
     if (!this.session) {
+      this.isStopping = false
       this.removeAllListeners()
       return
     }
+    this.isStopping = true
     try {
       this.session.close()
     } catch (error) {
@@ -241,6 +269,7 @@ export class SonioxStreamingService extends EventEmitter {
     this.isActive = false
     this.isTranslationMode = false
     this.hasErrored = false
+    this.isStopping = false
     this.session = null
     this.client = null
     this.accumulatedText = ''
