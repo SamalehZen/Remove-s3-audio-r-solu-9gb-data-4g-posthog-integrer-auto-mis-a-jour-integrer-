@@ -4,6 +4,7 @@ export class SonioxTempKeyManager {
   private cachedKey: string | null = null
   private keyExpiresAt: number = 0
   private keyFetchedAt: number = 0
+  private forceRefreshed = false
   private readonly REFRESH_MARGIN_MS = 5 * 60 * 1000
   // [FIX-1] Force key rotation after 10 min OR 20 sessions — whichever comes first.
   // Observed: firstTokenLatency degrades from ~250ms to ~1500ms after 40+ sessions on same key.
@@ -32,6 +33,7 @@ export class SonioxTempKeyManager {
         )
         this.cachedKey = null
         this.keyExpiresAt = 0
+        this.forceRefreshed = true
       }
     }
 
@@ -54,6 +56,9 @@ export class SonioxTempKeyManager {
       console.log(
         `[SonioxTempKey] Cache EXPIRED or in refresh window | keyAge=${Math.round(keyAgeMs / 1000)}s | msUntilExpiry=${msUntilExpiry}ms | [FINDING-4] sessionsOnExpiredKey=${this.sessionsOnCurrentKey} — fetching new key`,
       )
+    } else if (this.forceRefreshed) {
+      console.log('[SonioxTempKey] Key force-invalidated by FIX-1 thresholds — fetching new key')
+      this.forceRefreshed = false
     } else {
       console.log('[SonioxTempKey] No cached key — fetching new key from server')
     }

@@ -201,22 +201,36 @@ export class SonioxStreamingService extends EventEmitter {
       this.emit('finished')
     })
 
-    // ── Finding 3: écoute de l'événement 'disconnected' (LOG ONLY) ─────────────
-    // Le SDK émet 'disconnected' (pas 'error') quand le serveur ferme le WebSocket
-    // en état "connected". Sans ce listener, une connexion zombie reste isActive=true
-    // et hasErrored=false, ce qui cause des transcriptions silencieusement vides.
+    // ── Finding 3 FIX: écoute de l'événement 'disconnected' ────────────────────
+    // Le SDK émet 'disconnected' (pas 'error') quand le serveur ferme le WebSocket.
+    // Si la raison est 'client_closed', c'est notre propre session.close() → normal.
+    // Sinon, c'est une fermeture serveur inattendue → on marque la session comme errored
+    // pour éviter que sendAudio continue d'envoyer sur un socket mort silencieusement.
     this.session.on('disconnected', (reason?: string) => {
       const elapsed = Date.now() - this.sessionStartTime
-      console.warn(
-        `[SonioxStreaming:${this.sessionId}] [FINDING-3] DISCONNECTED event` +
-          ` | reason="${reason ?? 'none'}"` +
-          ` | age=${elapsed}ms` +
-          ` | isActive=${this.isActive}` +
-          ` | hasErrored=${this.hasErrored}` +
-          ` | accumChars=${this.accumulatedText.length}` +
-          ` | chunks=${this.totalChunksSent}` +
-          ` — NOTE: isActive/hasErrored NOT updated (log only)`,
-      )
+      const isClientInitiated = reason === 'client_closed'
+      if (!isClientInitiated && this.isActive && !this.hasErrored) {
+        console.error(
+          `[SonioxStreaming:${this.sessionId}] [FIX-3-DISCONNECTED] Unexpected server disconnect` +
+            ` | reason="${reason ?? 'none'}"` +
+            ` | age=${elapsed}ms` +
+            ` | accumChars=${this.accumulatedText.length}` +
+            ` | chunks=${this.totalChunksSent}` +
+            ` — marking session as errored to prevent zombie sends`,
+        )
+        this.hasErrored = true
+        this.isActive = false
+        this.safeEmitError(new Error(`Soniox WebSocket disconnected unexpectedly (reason: ${reason ?? 'none'})`))
+      } else {
+        console.log(
+          `[SonioxStreaming:${this.sessionId}] [FIX-3-DISCONNECTED] Disconnected` +
+            ` | reason="${reason ?? 'none'}"` +
+            ` | age=${elapsed}ms` +
+            ` | isActive=${this.isActive}` +
+            ` | hasErrored=${this.hasErrored}` +
+            ` | accumChars=${this.accumulatedText.length}`,
+        )
+      }
     })
 
     // ── Logs SDK supplémentaires pour visibilité complète ────────────────────
@@ -361,7 +375,7 @@ export class SonioxStreamingService extends EventEmitter {
       return this.accumulatedText
     }
 
-    const textBeforeFinish = this.accumulatedText
+    const textBeforeStop = this.accumulatedText
 
     try {
       if (!this.hasErrored) {
@@ -391,7 +405,7 @@ export class SonioxStreamingService extends EventEmitter {
         let finishTimeoutId: ReturnType<typeof setTimeout> | null = null
         const finishStart = Date.now()
         console.log(
-          `[SonioxStreaming:${this.sessionId}] Calling finish() — textBeforeFinish=${textBeforeFinish.length} chars, timeout=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms`,
+          `[SonioxStreaming:${this.sessionId}] Calling finish() — textBeforeStop=${textBeforeStop.length} chars, timeout=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms`,
         )
         try {
           await Promise.race([
@@ -406,21 +420,17 @@ export class SonioxStreamingService extends EventEmitter {
           const finishDuration = Date.now() - finishStart
           console.log(
             `[SonioxStreaming:${this.sessionId}] finish() COMPLETED in ${finishDuration}ms` +
-              ` | textAfterFinish=${this.accumulatedText.length} chars` +
-              ` | newTokensFromFinish=${this.accumulatedText.length - textBeforeFinish.length} chars` +
+              ` | textAfterStop=${this.accumulatedText.length} chars` +
+              ` | newTokensFromFinalizeAndFinish=${this.accumulatedText.length - textBeforeStop.length} chars` +
               ` | finalTokensTotal=${this.finalTokensReceived}`,
           )
         } catch (err: any) {
           const finishDuration = Date.now() - finishStart
-          // Bug fix: le calcul précédent était toujours >= 0 donc le message était toujours
-          // '0 chars recovered' ce qui est trompeur. La vraie info : combien de chars ont
-          // été reçus PENDANT la fenêtre de timeout (avant close()), et que les tokens
-          // encore côté serveur au moment du close() sont définitivement perdus.
-          const charsGainedDuringTimeout = this.accumulatedText.length - textBeforeFinish.length
+          const charsGainedDuringStop = this.accumulatedText.length - textBeforeStop.length
           console.warn(
             `[SonioxStreaming:${this.sessionId}] finish() TIMED OUT after ${finishDuration}ms (limit=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms)` +
-              ` | charsBeforeFinish=${textBeforeFinish.length}` +
-              ` | charsGainedDuringTimeout=${charsGainedDuringTimeout}` +
+              ` | charsBeforeStop=${textBeforeStop.length}` +
+              ` | charsGainedDuringStop=${charsGainedDuringStop}` +
               ` | charsAtTimeout=${this.accumulatedText.length}` +
               ` | ⚠️ tokens still server-side are LOST after close()` +
               ` | error: ${err.message}`,
