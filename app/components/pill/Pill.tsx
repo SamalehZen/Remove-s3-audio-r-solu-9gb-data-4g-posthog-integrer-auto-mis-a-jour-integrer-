@@ -98,6 +98,8 @@ const Pill = () => {
     if (cssInjectedRef.current) return
     cssInjectedRef.current = true
     document.documentElement.classList.add('pill-window')
+    document.body.style.background = 'transparent'
+    window.api?.send('pill-ready')
     if (document.fonts) {
       document.fonts.load('12px Inter').catch(() => {})
       document.fonts.load('10px Inter').catch(() => {})

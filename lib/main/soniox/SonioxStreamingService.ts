@@ -36,6 +36,20 @@ export class SonioxStreamingService extends EventEmitter {
   private isTranslationMode = false
   private static readonly FINISH_TIMEOUT_MS = 3000
 
+  // ── Diagnostic state ────────────────────────────────────────────────────────
+  private sessionId = ''
+  private sessionStartTime = 0
+  private connectTime = 0
+  private totalChunksSent = 0
+  private totalBytesSent = 0
+  private lastChunkSentTime = 0
+  private totalTokensReceived = 0
+  private finalTokensReceived = 0
+  private lastFinalTokenTime = 0
+  private firstTokenTime = 0
+  private droppedChunksAfterError = 0   // Bug fix: compteur séparé pour les chunks droppés post-erreur
+  // ────────────────────────────────────────────────────────────────────────────
+
   async start(
     tempApiKey: string,
     translationConfig?: SonioxTranslationConfig,
@@ -51,9 +65,26 @@ export class SonioxStreamingService extends EventEmitter {
       await this.stop()
     }
 
+    // Reset all state
     this.accumulatedText = ''
     this.hasErrored = false
     this.isTranslationMode = !!translationConfig
+    this.totalChunksSent = 0
+    this.totalBytesSent = 0
+    this.lastChunkSentTime = 0
+    this.totalTokensReceived = 0
+    this.finalTokensReceived = 0
+    this.lastFinalTokenTime = 0
+    this.firstTokenTime = 0
+    this.droppedChunksAfterError = 0
+
+    this.sessionId = `ssx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    this.sessionStartTime = Date.now()
+
+    console.log(
+      `[SonioxStreaming:${this.sessionId}] ── START ── mode=${translationConfig ? 'translation' : 'transcription'} disableEndpoint=${!!options?.disableEndpointDetection} hasContext=${!!options?.context}`,
+    )
+
     this.client = new SonioxNodeClient({ api_key: tempApiKey })
 
     const sessionConfig: any = {
@@ -78,7 +109,7 @@ export class SonioxStreamingService extends EventEmitter {
         ctx.translation_terms = options.context.translation_terms
       if (Object.keys(ctx).length > 0) {
         sessionConfig.context = ctx
-        console.log('[SonioxStreaming] Context injected:', {
+        console.log(`[SonioxStreaming:${this.sessionId}] Context injected:`, {
           general: ctx.general?.length || 0,
           text: ctx.text?.length || 0,
           terms: ctx.terms?.length || 0,
@@ -105,9 +136,24 @@ export class SonioxStreamingService extends EventEmitter {
     this.session = this.client.realtime.stt(sessionConfig)
 
     this.session.on('result', result => {
-      if (!this.isActive) return
+      if (!this.isActive) {
+        console.warn(
+          `[SonioxStreaming:${this.sessionId}] result received but session is inactive — token dropped`,
+        )
+        return
+      }
       try {
         if (result.tokens && result.tokens.length > 0) {
+          const now = Date.now()
+          if (this.firstTokenTime === 0) {
+            this.firstTokenTime = now
+            const latency = now - this.sessionStartTime
+            console.log(
+              `[SonioxStreaming:${this.sessionId}] First token received | latency from connect: ${latency}ms`,
+            )
+          }
+          this.totalTokensReceived += result.tokens.length
+
           for (const token of result.tokens) {
             if (this.isTranslationMode) {
               const status = (token as any).translation_status
@@ -118,6 +164,11 @@ export class SonioxStreamingService extends EventEmitter {
                 })
                 if (token.is_final) {
                   this.accumulatedText += token.text
+                  this.finalTokensReceived++
+                  this.lastFinalTokenTime = now
+                  console.log(
+                    `[SonioxStreaming:${this.sessionId}] Final token #${this.finalTokensReceived}: "${token.text.slice(0, 40)}" | accum: ${this.accumulatedText.length} chars | +${now - this.sessionStartTime}ms`,
+                  )
                 }
               }
             } else {
@@ -127,33 +178,89 @@ export class SonioxStreamingService extends EventEmitter {
               })
               if (token.is_final) {
                 this.accumulatedText += token.text
+                this.finalTokensReceived++
+                this.lastFinalTokenTime = now
+                console.log(
+                  `[SonioxStreaming:${this.sessionId}] Final token #${this.finalTokensReceived}: "${token.text.slice(0, 40)}" | accum: ${this.accumulatedText.length} chars | +${now - this.sessionStartTime}ms`,
+                )
               }
             }
           }
           this.emit('final-text', this.accumulatedText)
         }
       } catch (error) {
-        console.error('[SonioxStreaming] Error processing result:', error)
+        console.error(`[SonioxStreaming:${this.sessionId}] Error processing result:`, error)
       }
     })
 
     this.session.on('finished', () => {
-      console.log('[SonioxStreaming] Session finished')
+      const elapsed = Date.now() - this.sessionStartTime
+      console.log(
+        `[SonioxStreaming:${this.sessionId}] Session 'finished' event received | age: ${elapsed}ms | finalTokens: ${this.finalTokensReceived} | accum: ${this.accumulatedText.length} chars`,
+      )
       this.emit('finished')
     })
 
+    // ── Finding 3: écoute de l'événement 'disconnected' (LOG ONLY) ─────────────
+    // Le SDK émet 'disconnected' (pas 'error') quand le serveur ferme le WebSocket
+    // en état "connected". Sans ce listener, une connexion zombie reste isActive=true
+    // et hasErrored=false, ce qui cause des transcriptions silencieusement vides.
+    this.session.on('disconnected', (reason?: string) => {
+      const elapsed = Date.now() - this.sessionStartTime
+      console.warn(
+        `[SonioxStreaming:${this.sessionId}] [FINDING-3] DISCONNECTED event` +
+          ` | reason="${reason ?? 'none'}"` +
+          ` | age=${elapsed}ms` +
+          ` | isActive=${this.isActive}` +
+          ` | hasErrored=${this.hasErrored}` +
+          ` | accumChars=${this.accumulatedText.length}` +
+          ` | chunks=${this.totalChunksSent}` +
+          ` — NOTE: isActive/hasErrored NOT updated (log only)`,
+      )
+    })
+
+    // ── Logs SDK supplémentaires pour visibilité complète ────────────────────
+    this.session.on('connected', () => {
+      const elapsed = Date.now() - this.sessionStartTime
+      console.log(
+        `[SonioxStreaming:${this.sessionId}] CONNECTED event | age=${elapsed}ms (WebSocket handshake confirmed)`,
+      )
+    })
+
+    this.session.on('state_change', (update: { old_state: string; new_state: string }) => {
+      const elapsed = Date.now() - this.sessionStartTime
+      console.log(
+        `[SonioxStreaming:${this.sessionId}] STATE_CHANGE: ${update.old_state} → ${update.new_state} | age=${elapsed}ms`,
+      )
+    })
+
     this.session.on('error', (error: Error) => {
-      console.error('[SonioxStreaming] Session error:', error.message)
+      const elapsed = Date.now() - this.sessionStartTime
+      // [SONIOX-DOCS] Détecter le 503 "Cannot continue request" — force l'ouverture d'une nouvelle session
+      const errorCode = (error as any).code ?? 'unknown'
+      const errorStatus = (error as any).statusCode ?? 'unknown'
+      const is503 = errorStatus === 503 || String(error.message).includes('503') || String(error.message).includes('Cannot continue request')
+      const isQuota = errorCode === 'quota_exceeded' || String(error.message).toLowerCase().includes('quota')
+      console.error(
+        `[SonioxStreaming:${this.sessionId}] Session ERROR | age: ${elapsed}ms | chunks: ${this.totalChunksSent} | bytes: ${(this.totalBytesSent / 1024).toFixed(1)}KB | accum: ${this.accumulatedText.length} chars` +
+          ` | errorCode=${errorCode} | statusCode=${errorStatus}` +
+          ` | [SONIOX-DOCS] is503=${is503} isQuota=${isQuota}` +
+          (is503 ? ' — 503: must open NEW session' : '') +
+          (isQuota ? ' — QUOTA: temp key may be exhausted (Finding 4)' : '') +
+          ` | error: ${error.message}`,
+      )
       this.hasErrored = true
       this.isActive = false
       this.safeEmitError(error)
     })
 
+    const connectStart = Date.now()
     await this.session.connect()
+    this.connectTime = Date.now() - connectStart
     this.isActive = true
+
     console.log(
-      '[SonioxStreaming] Session started',
-      translationConfig ? '(translation mode)' : '(transcription mode)',
+      `[SonioxStreaming:${this.sessionId}] Connected in ${this.connectTime}ms | mode=${translationConfig ? 'translation' : 'transcription'}`,
     )
   }
 
@@ -162,18 +269,54 @@ export class SonioxStreamingService extends EventEmitter {
       this.emit('error', error)
     } else {
       console.error(
-        '[SonioxStreaming] Unhandled error (no listener):',
+        `[SonioxStreaming:${this.sessionId}] Unhandled error (no listener):`,
         error.message,
       )
     }
   }
 
   sendAudio(chunk: Buffer): void {
-    if (!this.isActive || !this.session || this.hasErrored) return
+    if (!this.isActive || !this.session || this.hasErrored) {
+      if (this.hasErrored) {
+        // Bug fix: utiliser droppedChunksAfterError (compteur dédié) et non totalChunksSent
+        // (qui est statique une fois hasErrored=true), sinon la condition % 50 est toujours
+        // évaluée sur la même valeur → spam continu ou silence total selon la valeur.
+        this.droppedChunksAfterError++
+        if (this.droppedChunksAfterError === 1 || this.droppedChunksAfterError % 50 === 0) {
+          console.warn(
+            `[SonioxStreaming:${this.sessionId}] sendAudio ignored — hasErrored=true | droppedAfterError=${this.droppedChunksAfterError} | totalChunksSent=${this.totalChunksSent}`,
+          )
+        }
+      }
+      return
+    }
     try {
       this.session.sendAudio(chunk)
+      this.totalChunksSent++
+      this.totalBytesSent += chunk.length
+      this.lastChunkSentTime = Date.now()
+
+      // Log audio throughput every 50 chunks
+      if (this.totalChunksSent % 50 === 0) {
+        const elapsed = Date.now() - this.sessionStartTime
+        const silenceSinceLastToken =
+          this.lastFinalTokenTime > 0
+            ? Date.now() - this.lastFinalTokenTime
+            : -1
+        const sessionMinutes = elapsed / 60_000
+        // [SONIOX-DOCS] Recommandation : redémarrer la session toutes les 15-20 min
+        const sessionAgeWarning = sessionMinutes >= 15
+          ? ` [⚠️ DOCS: session age ${sessionMinutes.toFixed(1)}min ≥ 15min recommended restart threshold]`
+          : ''
+        console.log(
+          `[SonioxStreaming:${this.sessionId}] Audio stats: chunks=${this.totalChunksSent} bytes=${(this.totalBytesSent / 1024).toFixed(1)}KB sessionAge=${elapsed}ms finalTokens=${this.finalTokensReceived} accumChars=${this.accumulatedText.length} silenceSinceLastToken=${silenceSinceLastToken}ms${sessionAgeWarning}`,
+        )
+      }
     } catch (error) {
-      console.error('[SonioxStreaming] Error sending audio chunk:', error)
+      console.error(
+        `[SonioxStreaming:${this.sessionId}] Error sending audio chunk #${this.totalChunksSent + 1}:`,
+        error,
+      )
       this.hasErrored = true
       this.isActive = false
       this.safeEmitError(
@@ -185,14 +328,58 @@ export class SonioxStreamingService extends EventEmitter {
   }
 
   async stop(): Promise<string> {
+    const stopCallTime = Date.now()
+    const sessionAge = this.sessionStartTime > 0 ? stopCallTime - this.sessionStartTime : -1
+    const timeSinceLastChunk =
+      this.lastChunkSentTime > 0 ? stopCallTime - this.lastChunkSentTime : -1
+    const timeSinceLastToken =
+      this.lastFinalTokenTime > 0 ? stopCallTime - this.lastFinalTokenTime : -1
+
+    // [SONIOX-DOCS] Log de l'état SDK natif de la session au moment du stop
+    const sdkState = this.session?.state ?? 'null'
+    console.log(
+      `[SonioxStreaming:${this.sessionId}] ── STOP called ──` +
+        ` | sessionAge=${sessionAge}ms` +
+        ` | sdkState=${sdkState}` +
+        ` | hasErrored=${this.hasErrored}` +
+        ` | isActive=${this.isActive}` +
+        ` | sessionNull=${!this.session}` +
+        ` | totalChunks=${this.totalChunksSent}` +
+        ` | totalBytes=${(this.totalBytesSent / 1024).toFixed(1)}KB` +
+        ` | totalTokens=${this.totalTokensReceived}` +
+        ` | finalTokens=${this.finalTokensReceived}` +
+        ` | accumChars=${this.accumulatedText.length}` +
+        ` | timeSinceLastChunk=${timeSinceLastChunk}ms` +
+        ` | timeSinceLastToken=${timeSinceLastToken}ms`,
+    )
+
+    // [SONIOX-DOCS] finalize() recommendation : le SDK expose session.finalize() pour forcer
+    // la finalisation côté serveur AVANT d'appeler finish(). Pour des enregistrements longs
+    // (>20s), les tokens peuvent être retenus côté serveur en attente d'un endpoint.
+    // On n'appelle PAS finalize() ici — si des tokens sont perdus, c'est un point de fix.
+    if (this.totalChunksSent > 100 && this.session && !this.hasErrored) {
+      console.warn(
+        `[SonioxStreaming:${this.sessionId}] [SONIOX-DOCS-FINALIZE] Long session (${this.totalChunksSent} chunks, ${(this.totalBytesSent / 1024).toFixed(0)}KB) — finalize() not called before finish(). If transcription is truncated, calling session.finalize() here would force server-side finalization of pending tokens.`,
+      )
+    }
+
     if (!this.session) {
+      console.warn(
+        `[SonioxStreaming:${this.sessionId}] stop() — session is null, returning accumulated text (${this.accumulatedText.length} chars)`,
+      )
       this.removeAllListeners()
       return this.accumulatedText
     }
 
+    const textBeforeFinish = this.accumulatedText
+
     try {
       if (!this.hasErrored) {
         let finishTimeoutId: ReturnType<typeof setTimeout> | null = null
+        const finishStart = Date.now()
+        console.log(
+          `[SonioxStreaming:${this.sessionId}] Calling finish() — textBeforeFinish=${textBeforeFinish.length} chars, timeout=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms`,
+        )
         try {
           await Promise.race([
             this.session.finish(),
@@ -203,18 +390,42 @@ export class SonioxStreamingService extends EventEmitter {
               )
             }),
           ])
+          const finishDuration = Date.now() - finishStart
+          console.log(
+            `[SonioxStreaming:${this.sessionId}] finish() COMPLETED in ${finishDuration}ms` +
+              ` | textAfterFinish=${this.accumulatedText.length} chars` +
+              ` | newTokensFromFinish=${this.accumulatedText.length - textBeforeFinish.length} chars` +
+              ` | finalTokensTotal=${this.finalTokensReceived}`,
+          )
         } catch (err: any) {
+          const finishDuration = Date.now() - finishStart
+          // Bug fix: le calcul précédent était toujours >= 0 donc le message était toujours
+          // '0 chars recovered' ce qui est trompeur. La vraie info : combien de chars ont
+          // été reçus PENDANT la fenêtre de timeout (avant close()), et que les tokens
+          // encore côté serveur au moment du close() sont définitivement perdus.
+          const charsGainedDuringTimeout = this.accumulatedText.length - textBeforeFinish.length
           console.warn(
-            '[SonioxStreaming] finish() did not complete in time, forcing close:',
-            err.message,
+            `[SonioxStreaming:${this.sessionId}] finish() TIMED OUT after ${finishDuration}ms (limit=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms)` +
+              ` | charsBeforeFinish=${textBeforeFinish.length}` +
+              ` | charsGainedDuringTimeout=${charsGainedDuringTimeout}` +
+              ` | charsAtTimeout=${this.accumulatedText.length}` +
+              ` | ⚠️ tokens still server-side are LOST after close()` +
+              ` | error: ${err.message}`,
           )
         } finally {
           if (finishTimeoutId) clearTimeout(finishTimeoutId)
         }
+      } else {
+        console.warn(
+          `[SonioxStreaming:${this.sessionId}] Skipping finish() because hasErrored=true | accumText="${this.accumulatedText.slice(0, 80)}" (${this.accumulatedText.length} chars)`,
+        )
       }
       this.session.close()
+      console.log(
+        `[SonioxStreaming:${this.sessionId}] session.close() called | finalText="${this.accumulatedText.slice(0, 80)}" (${this.accumulatedText.length} chars)`,
+      )
     } catch (error) {
-      console.error('[SonioxStreaming] Error during stop:', error)
+      console.error(`[SonioxStreaming:${this.sessionId}] Error during stop():`, error)
     }
 
     this.isActive = false
@@ -225,10 +436,19 @@ export class SonioxStreamingService extends EventEmitter {
     this.client = null
     this.removeAllListeners()
 
+    console.log(
+      `[SonioxStreaming:${this.sessionId}] ── STOP complete ──` +
+        ` | returnedText="${finalText.slice(0, 80)}" (${finalText.length} chars)`,
+    )
+
     return finalText
   }
 
   cancel(): void {
+    const sessionAge = this.sessionStartTime > 0 ? Date.now() - this.sessionStartTime : -1
+    console.log(
+      `[SonioxStreaming:${this.sessionId}] cancel() | sessionAge=${sessionAge}ms | chunks=${this.totalChunksSent} | accum=${this.accumulatedText.length} chars`,
+    )
     if (!this.session) {
       this.removeAllListeners()
       return
@@ -236,7 +456,7 @@ export class SonioxStreamingService extends EventEmitter {
     try {
       this.session.close()
     } catch (error) {
-      console.error('[SonioxStreaming] Error during cancel:', error)
+      console.error(`[SonioxStreaming:${this.sessionId}] Error during cancel():`, error)
     }
     this.isActive = false
     this.isTranslationMode = false
@@ -257,5 +477,50 @@ export class SonioxStreamingService extends EventEmitter {
 
   hasEncounteredError(): boolean {
     return this.hasErrored
+  }
+
+  getSessionId(): string {
+    return this.sessionId
+  }
+
+  getSessionAgeMs(): number {
+    return this.sessionStartTime > 0 ? Date.now() - this.sessionStartTime : -1
+  }
+
+  getDiagnostics(): {
+    sessionId: string
+    sessionAgeMs: number
+    connectTimeMs: number
+    firstTokenLatencyMs: number
+    totalChunksSent: number
+    totalBytesSent: number
+    totalTokensReceived: number
+    finalTokensReceived: number
+    accumTextLength: number
+    isActive: boolean
+    hasErrored: boolean
+    droppedChunksAfterError: number
+    timeSinceLastChunkMs: number
+    timeSinceLastFinalTokenMs: number
+  } {
+    const now = Date.now()
+    return {
+      sessionId: this.sessionId,
+      sessionAgeMs: this.sessionStartTime > 0 ? now - this.sessionStartTime : -1,
+      connectTimeMs: this.connectTime,
+      firstTokenLatencyMs: this.firstTokenTime > 0 ? this.firstTokenTime - this.sessionStartTime : -1,
+      totalChunksSent: this.totalChunksSent,
+      totalBytesSent: this.totalBytesSent,
+      totalTokensReceived: this.totalTokensReceived,
+      finalTokensReceived: this.finalTokensReceived,
+      accumTextLength: this.accumulatedText.length,
+      isActive: this.isActive,
+      hasErrored: this.hasErrored,
+      droppedChunksAfterError: this.droppedChunksAfterError,
+      timeSinceLastChunkMs:
+        this.lastChunkSentTime > 0 ? now - this.lastChunkSentTime : -1,
+      timeSinceLastFinalTokenMs:
+        this.lastFinalTokenTime > 0 ? now - this.lastFinalTokenTime : -1,
+    }
   }
 }

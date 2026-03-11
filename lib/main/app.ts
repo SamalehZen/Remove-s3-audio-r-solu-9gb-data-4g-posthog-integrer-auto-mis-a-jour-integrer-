@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, screen, app, protocol, net } from 'electron'
+import { BrowserWindow, shell, screen, app, protocol, net, ipcMain } from 'electron'
 import { join } from 'path'
 import appIcon from '@/resources/build/icon.png?asset'
 import { pathToFileURL } from 'url'
@@ -106,7 +106,7 @@ export function createAppWindow(): BrowserWindow {
 }
 
 const PILL_MAX_WIDTH = 280
-const PILL_MAX_HEIGHT = 80
+const PILL_MAX_HEIGHT = 120
 export function createPillWindow(): void {
   pillWindow = new BrowserWindow({
     width: PILL_MAX_WIDTH,
@@ -144,7 +144,14 @@ export function createPillWindow(): void {
     })
   }
 
-  pillWindow.once('ready-to-show', () => {
+  const PILL_READY_TIMEOUT_MS = 5000
+  const fallbackTimer = setTimeout(() => {
+    console.warn('[PillWindow] pill-ready not received in time, showing anyway')
+    pillWindow?.showInactive()
+  }, PILL_READY_TIMEOUT_MS)
+
+  ipcMain.once('pill-ready', () => {
+    clearTimeout(fallbackTimer)
     pillWindow?.showInactive()
   })
 
