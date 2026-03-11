@@ -54,6 +54,12 @@ export class ItoSessionManager {
   private readonly PRE_WARM_TTL_MS = 30_000
   private resolvedCustomMode: ResolvedCustomMode | null = null
 
+  // ── Diagnostic: session lifecycle tracking ─────────────────────────────────
+  private sonioxSessionStartTime = 0
+  private sonioxPendingChunksCount = 0
+  private sonioxPendingBytesAtFlush = 0
+  // ────────────────────────────────────────────────────────────────────────────
+
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
 
@@ -150,10 +156,16 @@ export class ItoSessionManager {
     this.isSonioxMode = true
     this.sonioxSessionActive = true
     const generation = ++this.sonioxSessionGeneration
+    this.sonioxSessionStartTime = Date.now()
+
+    console.log(
+      `[itoSessionManager] [SONIOX-START] generation=${generation} mode=${mode} sessionActive=true`,
+    )
 
     const pendingChunks: Buffer[] = []
     let pendingBytes = 0
     let sonioxReady = false
+    let droppedChunks = 0
 
     this.sonioxAudioHandler = (chunk: Buffer) => {
       if (sonioxReady && this.sonioxService) {
@@ -161,6 +173,13 @@ export class ItoSessionManager {
       } else if (pendingBytes < this.SONIOX_MAX_PENDING_BYTES) {
         pendingChunks.push(chunk)
         pendingBytes += chunk.length
+      } else {
+        droppedChunks++
+        if (droppedChunks === 1 || droppedChunks % 20 === 0) {
+          console.warn(
+            `[itoSessionManager] [SONIOX-AUDIO] Pending buffer full (${(this.SONIOX_MAX_PENDING_BYTES / 1024).toFixed(0)}KB) — DROPPING chunk #${droppedChunks} (${chunk.length}B)`,
+          )
+        }
       }
     }
     audioRecorderService.on('audio-chunk', this.sonioxAudioHandler)
@@ -192,28 +211,60 @@ export class ItoSessionManager {
         const preWarmed = this.preWarmedSonioxService
         this.preWarmedSonioxService = null
 
-        if (
-          preWarmed &&
+        const preWarmAge = preWarmed ? Date.now() - this.preWarmTimestamp : -1
+        // [FINDING-1] Log de l'état de la connexion pre-warmée au moment de l'utilisation.
+        // Un WebSocket pré-chaufé peut être silencieusement fermé par Soniox côté serveur
+        // sans que le client le sache (si 'disconnected' n'est pas écouté — Finding 3).
+        // Si isActive=true mais disconnected a été reçu, le sendAudio va échouer silencieusement.
+        if (preWarmed) {
+          console.log(
+            `[itoSessionManager] [FINDING-1-PREWARM-HEALTH] Pre-warm snapshot at reuse decision:` +
+              ` age=${preWarmAge}ms (TTL=${this.PRE_WARM_TTL_MS}ms)` +
+              ` isActive=${preWarmed.isCurrentlyActive()}` +
+              ` hasErrored=${preWarmed.hasEncounteredError()}` +
+              ` sessionId=${preWarmed.getSessionId()}` +
+              ` sessionAge=${preWarmed.getSessionAgeMs()}ms` +
+              ` — Watch for DISCONNECTED event logged above for same sessionId`,
+          )
+        }
+        const preWarmValid =
+          !!preWarmed &&
           preWarmed.isCurrentlyActive() &&
           !preWarmed.hasEncounteredError() &&
-          Date.now() - this.preWarmTimestamp < this.PRE_WARM_TTL_MS &&
+          preWarmAge < this.PRE_WARM_TTL_MS &&
           mode === ItoMode.TRANSCRIBE &&
           !hasDomainContext &&
           !hasVocabulary
-        ) {
-          this.sonioxService = preWarmed
+
+        console.log(
+          `[itoSessionManager] [SONIOX-PREWARM] preWarmExists=${!!preWarmed}` +
+            ` preWarmAge=${preWarmAge}ms` +
+            ` preWarmActive=${preWarmed?.isCurrentlyActive()}` +
+            ` preWarmErrored=${preWarmed?.hasEncounteredError()}` +
+            ` preWarmTTL=${this.PRE_WARM_TTL_MS}ms` +
+            ` mode=${mode}` +
+            ` hasDomainContext=${hasDomainContext}` +
+            ` hasVocabulary=${hasVocabulary}` +
+            ` → willReuse=${preWarmValid}`,
+        )
+
+        if (preWarmValid) {
+          this.sonioxService = preWarmed!
           this.sonioxService.on('error', (error: Error) => {
             console.error(
-              '[itoSessionManager] Soniox streaming error:',
+              `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (reused pre-warm session=${preWarmed?.getSessionId()}):`,
               error.message,
             )
             this.handleSonioxStreamError(error)
           })
           console.log(
-            '[itoSessionManager] Reusing pre-warmed Soniox connection',
+            `[itoSessionManager] [SONIOX-PREWARM] Reusing pre-warmed connection | sessionId=${preWarmed?.getSessionId()} age=${preWarmAge}ms`,
           )
         } else {
           if (preWarmed) {
+            console.log(
+              `[itoSessionManager] [SONIOX-PREWARM] Discarding stale pre-warm | sessionId=${preWarmed.getSessionId()} age=${preWarmAge}ms active=${preWarmed.isCurrentlyActive()} errored=${preWarmed.hasEncounteredError()}`,
+            )
             preWarmed.cancel()
           }
 
@@ -235,11 +286,14 @@ export class ItoSessionManager {
           this.sonioxService = new SonioxStreamingService()
           this.sonioxService.on('error', (error: Error) => {
             console.error(
-              '[itoSessionManager] Soniox streaming error:',
+              `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (fresh session=${this.sonioxService?.getSessionId()}):`,
               error.message,
             )
             this.handleSonioxStreamError(error)
           })
+          console.log(
+            `[itoSessionManager] [SONIOX-CONNECT] Starting fresh Soniox connection | generation=${generation}`,
+          )
           await this.sonioxService.start(
             tempKey,
             this.getTranslationConfig(),
@@ -272,13 +326,15 @@ export class ItoSessionManager {
 
       if (connected) {
         sonioxReady = true
+        this.sonioxPendingChunksCount = pendingChunks.length
+        this.sonioxPendingBytesAtFlush = pendingBytes
+        console.log(
+          `[itoSessionManager] [SONIOX-CONNECTED] Flushing ${pendingChunks.length} buffered chunks (${(pendingBytes / 1024).toFixed(1)}KB) | droppedChunks=${droppedChunks} | connectDelta=${Date.now() - this.sonioxSessionStartTime}ms`,
+        )
         for (const chunk of pendingChunks) {
           this.sonioxService!.sendAudio(chunk)
         }
         pendingChunks.length = 0
-        console.log(
-          '[itoSessionManager] Soniox connected, buffered chunks flushed',
-        )
       }
     } catch (error) {
       if (this.currentMode === ItoMode.TRANSLATE) {
@@ -521,9 +577,12 @@ export class ItoSessionManager {
   }
 
   private async completeSonioxSession() {
+    const completeCallTime = Date.now()
+    const sessionAge = this.sonioxSessionStartTime > 0 ? completeCallTime - this.sonioxSessionStartTime : -1
+
     if (!this.sonioxSessionActive) {
       console.warn(
-        '[itoSessionManager] completeSonioxSession called but no active session, skipping',
+        `[itoSessionManager] [SONIOX-COMPLETE] completeSonioxSession called but no active session, skipping | sessionAge=${sessionAge}ms`,
       )
       return
     }
@@ -533,16 +592,56 @@ export class ItoSessionManager {
 
     const mode = this.currentMode
     const service = this.sonioxService
-    this.sonioxService = null
+
+    const diagnostics = service?.getDiagnostics()
+    console.log(
+      `[itoSessionManager] [SONIOX-COMPLETE] ── START ──` +
+        ` | sessionAge=${sessionAge}ms` +
+        ` | mode=${mode}` +
+        ` | serviceExists=${!!service}` +
+        ` | serviceActive=${diagnostics?.isActive}` +
+        ` | serviceErrored=${diagnostics?.hasErrored}` +
+        ` | serviceSessionId=${diagnostics?.sessionId}` +
+        ` | connectTimeMs=${diagnostics?.connectTimeMs}` +
+        ` | firstTokenLatencyMs=${diagnostics?.firstTokenLatencyMs}` +
+        ` | serviceChunks=${diagnostics?.totalChunksSent}` +
+        ` | serviceBytes=${diagnostics ? (diagnostics.totalBytesSent / 1024).toFixed(1) : 'N/A'}KB` +
+        ` | serviceFinalTokens=${diagnostics?.finalTokensReceived}` +
+        ` | serviceAccumChars=${diagnostics?.accumTextLength}` +
+        ` | droppedAfterError=${diagnostics?.droppedChunksAfterError}` +
+        ` | pendingChunksAtStart=${this.sonioxPendingChunksCount}` +
+        ` | pendingBytesAtFlush=${(this.sonioxPendingBytesAtFlush / 1024).toFixed(1)}KB`,
+    )
 
     const hasCustomPrompt = this.sonioxContext?.tone?.promptTemplate?.trim()
 
     if (mode === ItoMode.TRANSCRIBE && !hasCustomPrompt) {
+      // [FINDING-2] Le path gRPC attend DRAIN_FLUSH_MS (80ms) avant d'envoyer le signal de fin
+      // pour laisser le pipeline audio vider ses derniers chunks. Ce path Soniox n'a PAS ce délai.
+      // Impact : les ~80 dernières ms d'audio peuvent ne pas être capturées avant stopRecording().
+      // Comparaison : gRPC → await new Promise(r => setTimeout(r, DRAIN_FLUSH_MS)) // 80ms
+      //               Soniox → rien ← ici
+      const drainGapStart = Date.now()
+      console.warn(
+        `[itoSessionManager] [FINDING-2-DRAIN] No drain wait before stopRecording() (gRPC has ${this.DRAIN_FLUSH_MS}ms drain) | sessionAge=${sessionAge}ms | If last words are truncated, this window is the cause`,
+      )
+      // FIX: Remove the audio handler BEFORE nulling this.sonioxService to prevent
+      // last audio chunks from being silently dropped into a defunct pendingChunks closure.
+      // Previously: sonioxService=null → stopRecording → off(handler) [RACE: chunks dropped]
+      // Now:        stopRecording → off(handler) → sonioxService=null [correct order]
       audioRecorderService.stopRecording()
+      const drainGapDuration = Date.now() - drainGapStart
+      console.log(
+        `[itoSessionManager] [FINDING-2-DRAIN] stopRecording() completed | elapsed since last audio possible=${drainGapDuration}ms | for reference gRPC drains ${this.DRAIN_FLUSH_MS}ms first`,
+      )
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
+        console.log(
+          `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed after stopRecording | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+        )
       }
+      this.sonioxService = null
       if (store.get(STORE_KEYS.SETTINGS)?.muteAudioWhenDictating) {
         unmuteSystemAudio()
       }
@@ -552,16 +651,34 @@ export class ItoSessionManager {
 
       let rawTranscript = ''
       if (service) {
+        const stopStart = Date.now()
         try {
           rawTranscript = await service.stop()
+          const stopDuration = Date.now() - stopStart
+          console.log(
+            `[itoSessionManager] [SONIOX-COMPLETE] service.stop() returned in ${stopDuration}ms | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+          )
         } catch (error) {
-          console.error('[itoSessionManager] Error stopping Soniox service:', error)
+          const stopDuration = Date.now() - stopStart
+          console.error(
+            `[itoSessionManager] [SONIOX-COMPLETE] service.stop() threw after ${stopDuration}ms:`,
+            error,
+          )
           rawTranscript = service.getAccumulatedText() || ''
+          console.log(
+            `[itoSessionManager] [SONIOX-COMPLETE] Using fallback accumulatedText: "${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+          )
         }
+      } else {
+        console.warn(
+          `[itoSessionManager] [SONIOX-COMPLETE] service is null — no transcript available (was it cancelled or errored before stop?)`,
+        )
       }
 
       if (!rawTranscript || rawTranscript.trim().length === 0) {
-        console.warn('[itoSessionManager] No speech detected from Soniox')
+        console.warn(
+          `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (empty transcript) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+        )
         recordingStateNotifier.notifyProcessingStopped()
         allowAppNap()
         this.cleanupSonioxState()
@@ -601,17 +718,25 @@ export class ItoSessionManager {
               userDetailsContext: this.buildUserDetailsContextString(ctx.userDetails),
             }
           }
+          const fastStart = Date.now()
           const fastResponse = await itoHttpClient.post(
             '/adjust-transcript',
             fastRequestBody,
             { requireAuth: true, timeoutMs: 5000 },
           )
+          const fastDuration = Date.now() - fastStart
           if (fastResponse?.success && fastResponse?.transcript) {
             textToInsert = fastResponse.transcript
-            console.log('[itoSessionManager] Soniox Fast Mode LLM applied successfully')
+            console.log(
+              `[itoSessionManager] [SONIOX-FASTLLM] Applied in ${fastDuration}ms | input=${rawTranscript.length} chars → output=${textToInsert.length} chars`,
+            )
+          } else {
+            console.warn(
+              `[itoSessionManager] [SONIOX-FASTLLM] Response not successful after ${fastDuration}ms | success=${fastResponse?.success} hasTranscript=${!!fastResponse?.transcript}`,
+            )
           }
         } catch (error) {
-          console.error('[itoSessionManager] Soniox Fast Mode LLM failed, using raw transcript:', error)
+          console.error('[itoSessionManager] [SONIOX-FASTLLM] Failed, using raw transcript:', error)
         }
       }
 
@@ -640,31 +765,49 @@ export class ItoSessionManager {
       return
     }
 
+    // FIX: Stop audio and remove handler BEFORE nulling sonioxService (same race condition fix as TRANSCRIBE path)
     await voiceInputService.stopAudioRecording()
 
     if (this.sonioxAudioHandler) {
       audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
       this.sonioxAudioHandler = null
+      console.log(
+        `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed (non-TRANSCRIBE path) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+      )
     }
+    this.sonioxService = null
 
     recordingStateNotifier.notifyProcessingStarted()
     recordingStateNotifier.notifyRecordingStopped()
 
     let rawTranscript = ''
     if (service) {
+      const stopStart = Date.now()
       try {
         rawTranscript = await service.stop()
+        console.log(
+          `[itoSessionManager] [SONIOX-COMPLETE] service.stop() returned in ${Date.now() - stopStart}ms | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+        )
       } catch (error) {
         console.error(
-          '[itoSessionManager] Error stopping Soniox service:',
+          `[itoSessionManager] [SONIOX-COMPLETE] service.stop() threw after ${Date.now() - stopStart}ms:`,
           error,
         )
         rawTranscript = service.getAccumulatedText() || ''
+        console.log(
+          `[itoSessionManager] [SONIOX-COMPLETE] Using fallback accumulatedText: "${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+        )
       }
+    } else {
+      console.warn(
+        `[itoSessionManager] [SONIOX-COMPLETE] service is null on non-TRANSCRIBE path`,
+      )
     }
 
     if (!rawTranscript || rawTranscript.trim().length === 0) {
-      console.warn('[itoSessionManager] No speech detected from Soniox')
+      console.warn(
+        `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (non-TRANSCRIBE path) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+      )
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
       this.cleanupSonioxState()
@@ -916,13 +1059,28 @@ export class ItoSessionManager {
   }
 
   private preWarmSonioxConnection() {
-    if (this.preWarmedSonioxService) return
+    if (this.preWarmedSonioxService) {
+      console.log(
+        `[itoSessionManager] [SONIOX-PREWARM] Pre-warm skipped — already have a pre-warmed service (sessionId=${this.preWarmedSonioxService.getSessionId()} age=${Date.now() - this.preWarmTimestamp}ms)`,
+      )
+      return
+    }
+    const warmStart = Date.now()
+    console.log('[itoSessionManager] [SONIOX-PREWARM] Starting pre-warm...')
     sonioxTempKeyManager
       .getKey()
       .then(async tempKey => {
-        if (this.preWarmedSonioxService || this.sonioxSessionActive) return
+        if (this.preWarmedSonioxService || this.sonioxSessionActive) {
+          console.log(
+            `[itoSessionManager] [SONIOX-PREWARM] Aborted after key fetch — preWarmedExists=${!!this.preWarmedSonioxService} sessionActive=${this.sonioxSessionActive}`,
+          )
+          return
+        }
         const service = new SonioxStreamingService()
-        service.on('error', () => {
+        service.on('error', (error: Error) => {
+          console.error(
+            `[itoSessionManager] [SONIOX-PREWARM] Pre-warmed service errored (sessionId=${service.getSessionId()} age=${service.getSessionAgeMs()}ms): ${error.message}`,
+          )
           if (this.preWarmedSonioxService === service) {
             this.preWarmedSonioxService = null
             this.preWarmTimestamp = 0
@@ -930,18 +1088,30 @@ export class ItoSessionManager {
         })
         await service.start(tempKey)
         if (this.sonioxSessionActive) {
+          console.log(
+            `[itoSessionManager] [SONIOX-PREWARM] Session became active during pre-warm connect — cancelling (sessionId=${service.getSessionId()})`,
+          )
           service.cancel()
           return
         }
         this.preWarmedSonioxService = service
         this.preWarmTimestamp = Date.now()
         console.log(
-          '[itoSessionManager] Pre-warmed Soniox connection ready',
+          `[itoSessionManager] [SONIOX-PREWARM] Ready | sessionId=${service.getSessionId()} | totalTime=${Date.now() - warmStart}ms | TTL=${this.PRE_WARM_TTL_MS}ms`,
+        )
+        // [SONIOX-DOCS] KEEPALIVE MANQUANT : La doc Soniox recommande d'envoyer un keepalive
+        // toutes les 20 secondes pendant les silences. Le SDK expose session.pause() qui active
+        // les keepalives automatiques (défaut 5s) ET session.keepAlive() pour envoi manuel.
+        // Cette connexion pré-chaufée reste IDLE jusqu'à ${PRE_WARM_TTL_MS}ms SANS keepalive.
+        // Soniox ferme silencieusement les connexions inactives -> zombie.
+        // Fix à appliquer : service.pause() ici, service.resume() au moment de réutiliser.
+        console.warn(
+          `[itoSessionManager] [SONIOX-DOCS-KEEPALIVE] Pre-warm session ${service.getSessionId()} is now IDLE for up to ${this.PRE_WARM_TTL_MS / 1000}s with NO keepalive. SDK has session.pause() (auto-keepalive) and session.keepAlive() (manual). Soniox closes idle connections after ~20s. This IS the root cause of zombie connections.`,
         )
       })
       .catch(error => {
         console.warn(
-          '[itoSessionManager] Pre-warm Soniox connection failed:',
+          '[itoSessionManager] [SONIOX-PREWARM] Failed:',
           error,
         )
       })
@@ -1011,17 +1181,16 @@ export class ItoSessionManager {
   }
 
   private handleSonioxStreamError(error: Error) {
+    const sessionAge = this.sonioxSessionStartTime > 0 ? Date.now() - this.sonioxSessionStartTime : -1
     if (!this.sonioxSessionActive) {
       console.warn(
-        '[itoSessionManager] Soniox stream error after session ended, ignoring:',
-        error.message,
+        `[itoSessionManager] [SONIOX-ERROR] Stream error after session ended (sessionAge=${sessionAge}ms), ignoring: ${error.message}`,
       )
       return
     }
 
     console.error(
-      '[itoSessionManager] Soniox stream error, cleaning up session:',
-      error.message,
+      `[itoSessionManager] [SONIOX-ERROR] Stream error during active session (sessionAge=${sessionAge}ms) — cleaning up: ${error.message}`,
     )
 
     this.sonioxSessionActive = false
