@@ -32,7 +32,6 @@ export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
   private readonly SONIOX_CONNECT_TIMEOUT_MS = 10_000
   private readonly SONIOX_MAX_PENDING_BYTES = 512 * 1024
-  private readonly SONIOX_DRAIN_TIMEOUT_MS = 120
 
   private textInserter = new TextInserter()
   private streamResponsePromise: Promise<{
@@ -53,7 +52,6 @@ export class ItoSessionManager {
   private preWarmedSonioxService: SonioxStreamingService | null = null
   private preWarmTimestamp = 0
   private readonly PRE_WARM_TTL_MS = 30_000
-  private preWarmExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private resolvedCustomMode: ResolvedCustomMode | null = null
 
   public async startSession(mode: ItoMode) {
@@ -192,18 +190,17 @@ export class ItoSessionManager {
         const hasVocabulary = dictionaryItems.length > 0
 
         const preWarmed = this.preWarmedSonioxService
-        const preWarmAgeMs = Date.now() - this.preWarmTimestamp
+        this.preWarmedSonioxService = null
 
         if (
           preWarmed &&
           preWarmed.isCurrentlyActive() &&
           !preWarmed.hasEncounteredError() &&
-          preWarmAgeMs < this.PRE_WARM_TTL_MS &&
+          Date.now() - this.preWarmTimestamp < this.PRE_WARM_TTL_MS &&
           mode === ItoMode.TRANSCRIBE &&
           !hasDomainContext &&
           !hasVocabulary
         ) {
-          this.clearPreWarmedSonioxState()
           this.sonioxService = preWarmed
           this.sonioxService.on('error', (error: Error) => {
             console.error(
@@ -217,10 +214,7 @@ export class ItoSessionManager {
           )
         } else {
           if (preWarmed) {
-            this.disposePreWarmedSonioxService(
-              preWarmed,
-              'discarding stale or incompatible pre-warmed connection',
-            )
+            preWarmed.cancel()
           }
 
           let sonioxContext: SonioxContextConfig | null = null
@@ -545,16 +539,6 @@ export class ItoSessionManager {
 
     if (mode === ItoMode.TRANSCRIBE && !hasCustomPrompt) {
       audioRecorderService.stopRecording()
-      try {
-        await audioRecorderService.awaitDrainComplete?.(
-          this.SONIOX_DRAIN_TIMEOUT_MS,
-        )
-      } catch (error) {
-        console.warn(
-          '[itoSessionManager] Soniox drain wait failed, continuing:',
-          error,
-        )
-      }
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
@@ -931,40 +915,6 @@ export class ItoSessionManager {
     this.resolvedCustomMode = null
   }
 
-  private clearPreWarmExpiryTimer() {
-    if (this.preWarmExpiryTimer) {
-      clearTimeout(this.preWarmExpiryTimer)
-      this.preWarmExpiryTimer = null
-    }
-  }
-
-  private clearPreWarmedSonioxState() {
-    this.clearPreWarmExpiryTimer()
-    this.preWarmedSonioxService = null
-    this.preWarmTimestamp = 0
-  }
-
-  private disposePreWarmedSonioxService(
-    service: SonioxStreamingService,
-    reason: string,
-  ) {
-    if (this.preWarmedSonioxService === service) {
-      this.clearPreWarmedSonioxState()
-    }
-    console.log(
-      '[itoSessionManager] Closing pre-warmed Soniox connection:',
-      reason,
-    )
-    try {
-      service.cancel()
-    } catch (error) {
-      console.warn(
-        '[itoSessionManager] Failed to close pre-warmed Soniox connection:',
-        error,
-      )
-    }
-  }
-
   private preWarmSonioxConnection() {
     if (this.preWarmedSonioxService) return
     sonioxTempKeyManager
@@ -974,7 +924,8 @@ export class ItoSessionManager {
         const service = new SonioxStreamingService()
         service.on('error', () => {
           if (this.preWarmedSonioxService === service) {
-            this.clearPreWarmedSonioxState()
+            this.preWarmedSonioxService = null
+            this.preWarmTimestamp = 0
           }
         })
         await service.start(tempKey)
@@ -984,15 +935,9 @@ export class ItoSessionManager {
         }
         this.preWarmedSonioxService = service
         this.preWarmTimestamp = Date.now()
-        this.clearPreWarmExpiryTimer()
-        this.preWarmExpiryTimer = setTimeout(() => {
-          if (this.preWarmedSonioxService !== service) return
-          this.disposePreWarmedSonioxService(
-            service,
-            'pre-warm TTL expired before reuse',
-          )
-        }, this.PRE_WARM_TTL_MS)
-        console.log('[itoSessionManager] Pre-warmed Soniox connection ready')
+        console.log(
+          '[itoSessionManager] Pre-warmed Soniox connection ready',
+        )
       })
       .catch(error => {
         console.warn(
