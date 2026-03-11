@@ -5,14 +5,35 @@ export class SonioxTempKeyManager {
   private keyExpiresAt: number = 0
   private keyFetchedAt: number = 0
   private readonly REFRESH_MARGIN_MS = 5 * 60 * 1000
+  // [FIX-1] Force key rotation after 10 min OR 20 sessions — whichever comes first.
+  // Observed: firstTokenLatency degrades from ~250ms to ~1500ms after 40+ sessions on same key.
+  // These thresholds prevent accumulation-based degradation with minimal backend overhead.
+  private readonly MAX_SESSIONS_PER_KEY = 20
+  private readonly KEY_MAX_AGE_MS = 10 * 60 * 1000 // 10 minutes
 
   // [FINDING-4] Tracker du nombre de sessions utilisant la même clé temporaire
-  // Hypothèse : Soniox pourrait limiter le débit ou dégrader les performances
-  // après un grand nombre de sessions sur la même clé (certitude 40% - à observer).
   private sessionsOnCurrentKey = 0
 
   async getKey(): Promise<string> {
     const now = Date.now()
+
+    // [FIX-1] Force early rotation if age OR session count threshold exceeded.
+    // This prevents the observed latency degradation (250ms → 1500ms) after long key reuse.
+    if (this.cachedKey) {
+      const keyAgeMs = now - this.keyFetchedAt
+      const ageLimitHit = keyAgeMs >= this.KEY_MAX_AGE_MS
+      const sessionLimitHit = this.sessionsOnCurrentKey >= this.MAX_SESSIONS_PER_KEY
+      if (ageLimitHit || sessionLimitHit) {
+        const reasons: string[] = []
+        if (ageLimitHit) reasons.push(`age=${Math.round(keyAgeMs / 1000)}s ≥ ${this.KEY_MAX_AGE_MS / 1000}s`)
+        if (sessionLimitHit) reasons.push(`sessions=${this.sessionsOnCurrentKey} ≥ ${this.MAX_SESSIONS_PER_KEY}`)
+        console.warn(
+          `[SonioxTempKey] [FIX-1] Force refresh | ${reasons.join(' | ')} — invalidating early to prevent degradation`,
+        )
+        this.cachedKey = null
+        this.keyExpiresAt = 0
+      }
+    }
 
     if (
       this.cachedKey &&

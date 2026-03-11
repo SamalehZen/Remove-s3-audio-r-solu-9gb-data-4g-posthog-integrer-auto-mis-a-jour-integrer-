@@ -34,7 +34,7 @@ export class SonioxStreamingService extends EventEmitter {
   private accumulatedText = ''
   private hasErrored = false
   private isTranslationMode = false
-  private static readonly FINISH_TIMEOUT_MS = 3000
+  private static readonly FINISH_TIMEOUT_MS = 8000
 
   // ── Diagnostic state ────────────────────────────────────────────────────────
   private sessionId = ''
@@ -353,16 +353,6 @@ export class SonioxStreamingService extends EventEmitter {
         ` | timeSinceLastToken=${timeSinceLastToken}ms`,
     )
 
-    // [SONIOX-DOCS] finalize() recommendation : le SDK expose session.finalize() pour forcer
-    // la finalisation côté serveur AVANT d'appeler finish(). Pour des enregistrements longs
-    // (>20s), les tokens peuvent être retenus côté serveur en attente d'un endpoint.
-    // On n'appelle PAS finalize() ici — si des tokens sont perdus, c'est un point de fix.
-    if (this.totalChunksSent > 100 && this.session && !this.hasErrored) {
-      console.warn(
-        `[SonioxStreaming:${this.sessionId}] [SONIOX-DOCS-FINALIZE] Long session (${this.totalChunksSent} chunks, ${(this.totalBytesSent / 1024).toFixed(0)}KB) — finalize() not called before finish(). If transcription is truncated, calling session.finalize() here would force server-side finalization of pending tokens.`,
-      )
-    }
-
     if (!this.session) {
       console.warn(
         `[SonioxStreaming:${this.sessionId}] stop() — session is null, returning accumulated text (${this.accumulatedText.length} chars)`,
@@ -375,6 +365,29 @@ export class SonioxStreamingService extends EventEmitter {
 
     try {
       if (!this.hasErrored) {
+        // [FIX-3] Call finalize() before finish() to flush server-side pending tokens.
+        // Confirmed from SDK: session.finalize(options?: { trailing_silence_ms?: number }): void
+        // Without this, tokens held server-side waiting for an endpoint signal are lost on close().
+        const sdkStateForFinalize = this.session.state ?? 'unknown'
+        if (sdkStateForFinalize === 'connected') {
+          console.log(
+            `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] Calling finalize() before finish() | chunks=${this.totalChunksSent} | accumChars=${this.accumulatedText.length} | sdkState=${sdkStateForFinalize}`,
+          )
+          try {
+            this.session.finalize()
+            console.log(
+              `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] finalize() called — server will flush pending tokens before finish()`,
+            )
+          } catch (finalizeErr: any) {
+            console.warn(
+              `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] finalize() threw: ${finalizeErr?.message ?? finalizeErr} — proceeding with finish() anyway`,
+            )
+          }
+        } else {
+          console.log(
+            `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] Skipping finalize() | sdkState=${sdkStateForFinalize} (need 'connected') | chunks=${this.totalChunksSent}`,
+          )
+        }
         let finishTimeoutId: ReturnType<typeof setTimeout> | null = null
         const finishStart = Date.now()
         console.log(
