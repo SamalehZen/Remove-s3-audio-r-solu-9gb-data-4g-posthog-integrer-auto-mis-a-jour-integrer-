@@ -19,6 +19,7 @@
         "@fastify/cors": "^11.1.0",
         "@google/genai": "^1.41.0",
         "@soniox/node": "^1.1.1",
+        "@speechmatics/auth": "0.1.0",
         "config": "^4.0.0",
         "dotenv": "^16.5.0",
         "fastify": "^5.4.0",
@@ -366,6 +367,8 @@
     "@smithy/util-waiter": ["@smithy/util-waiter@4.0.7", "", { "dependencies": { "@smithy/abort-controller": "^4.0.5", "@smithy/types": "^4.3.2", "tslib": "^2.6.2" } }, "sha512-mYqtQXPmrwvUljaHyGxYUIIRI3qjBTEb/f5QFi3A6VlxhpmZd5mWXn9W+qUkf2pVE1Hv3SqxefiZOPGdxmO64A=="],
 
     "@soniox/node": ["@soniox/node@1.1.1", "", {}, "sha512-m4SYLSavueqxZqXE90LtaDEo3XJsdxf0iDEB54Scd0yBz4DSj+ElxdmDHaT2B5X0vbHyHXSnHaZ7R9DMAM/GQA=="],
+
+    "@speechmatics/auth": ["@speechmatics/auth@0.1.0", "", {}, "sha512-vF1XOFlAtbNSWYsuJm9WDAZfZIOpwibgqu0sH/Qqkbyz2w/EQyoIhlKta8KRVZ74JeKyY08mnGQ17WDj6i6U4Q=="],
 
     "@tsconfig/node10": ["@tsconfig/node10@1.0.11", "", {}, "sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw=="],
 

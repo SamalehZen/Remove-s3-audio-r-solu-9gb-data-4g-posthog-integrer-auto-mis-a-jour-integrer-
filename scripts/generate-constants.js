@@ -44,6 +44,11 @@ export const DEFAULT_ADVANCED_SETTINGS = {
 
   // Vision model for CONTEXT_AWARENESS
   visionModel: '${DEFAULT_ADVANCED_SETTINGS.visionModel}',
+
+  // Speechmatics settings
+  speechmaticsLanguage: '${DEFAULT_ADVANCED_SETTINGS.speechmaticsLanguage}',
+  speechmaticsOperatingPoint: '${DEFAULT_ADVANCED_SETTINGS.speechmaticsOperatingPoint}',
+  speechmaticsRemoveDisfluencies: ${DEFAULT_ADVANCED_SETTINGS.speechmaticsRemoveDisfluencies},
 } as const;
 `
 

@@ -59,6 +59,9 @@ const DEFAULT_MODELS_BY_PROVIDER: Record<
   soniox: {
     asrModel: 'stt-rt-v4',
   },
+  speechmatics: {
+    asrModel: 'enhanced',
+  },
 }
 
 const llmSettingsConfig: LlmSettingConfig[] = [
@@ -69,7 +72,7 @@ const llmSettingsConfig: LlmSettingConfig[] = [
     description: 'Speech-to-text provider for audio transcription',
     maxLength: modelProviderLengthLimit,
     isSelect: true,
-    options: ['gemini', 'groq', 'soniox'],
+    options: ['gemini', 'groq', 'soniox', 'speechmatics'],
   },
   {
     name: 'asrModel',
@@ -396,6 +399,9 @@ export default function AdvancedSettingsContent() {
       sonioxFastLlmModel: null,
       sonioxFastPrompt: null,
       visionModel: null,
+      speechmaticsLanguage: null,
+      speechmaticsOperatingPoint: null,
+      speechmaticsRemoveDisfluencies: null,
     }
     setLlmSettings(defaultLlmSettings)
     scheduleAdvancedSettingsUpdate(
@@ -560,6 +566,90 @@ export default function AdvancedSettingsContent() {
             </>
           )}
         </div>
+
+        {/* ── Speechmatics Settings ── */}
+        {llm?.asrProvider === 'speechmatics' && (
+          <div className="mt-6 pt-4 border-t border-[var(--border)]">
+            <h3 className="text-sm font-semibold text-[var(--color-text)] mb-1">
+              Speechmatics Settings
+            </h3>
+            <p className="text-[13px] text-[var(--color-subtext)] mb-4">
+              Configuration for Speechmatics real-time transcription.
+            </p>
+
+            {/* Language */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                Language
+              </label>
+              <input
+                value={llm?.speechmaticsLanguage ?? 'fr'}
+                onChange={(e) => {
+                  const update = { speechmaticsLanguage: e.target.value }
+                  setLlmSettings(update)
+                  scheduleAdvancedSettingsUpdate(
+                    { ...llm, ...update },
+                    grammarServiceEnabled,
+                    macosAccessibilityContextEnabled,
+                  )
+                }}
+                className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                placeholder="fr"
+                maxLength={10}
+              />
+              <p className="w-3/4 text-[13px] text-[var(--color-subtext)] mt-1 ml-1">
+                Language code (e.g. fr, en, de, es)
+              </p>
+            </div>
+
+            {/* Operating Point */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-[var(--color-text)] mb-1 ml-1">
+                Operating Point
+              </label>
+              <select
+                value={llm?.speechmaticsOperatingPoint ?? 'enhanced'}
+                onChange={(e) => {
+                  const update = { speechmaticsOperatingPoint: e.target.value }
+                  setLlmSettings(update)
+                  scheduleAdvancedSettingsUpdate(
+                    { ...llm, ...update },
+                    grammarServiceEnabled,
+                    macosAccessibilityContextEnabled,
+                  )
+                }}
+                className="w-3/4 ml-1 px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+              >
+                <option value="enhanced">enhanced (more accurate)</option>
+                <option value="standard">standard (faster)</option>
+              </select>
+            </div>
+
+            {/* Remove Disfluencies */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">Remove Disfluencies</p>
+                <p className="text-[13px] text-[var(--color-subtext)]">
+                  Remove filler words (euh, hum) directly in Speechmatics before LLM
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={!!(llm?.speechmaticsRemoveDisfluencies)}
+                onChange={(e) => {
+                  const update = { speechmaticsRemoveDisfluencies: e.target.checked }
+                  setLlmSettings(update)
+                  scheduleAdvancedSettingsUpdate(
+                    { ...llm, ...update },
+                    grammarServiceEnabled,
+                    macosAccessibilityContextEnabled,
+                  )
+                }}
+                className="h-4 w-4 accent-[var(--ring)]"
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── Vision Model ── */}
         <div className="mt-6 pt-4 border-t border-[var(--border)]">

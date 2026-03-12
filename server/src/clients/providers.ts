@@ -3,4 +3,5 @@ export enum ClientProvider {
   CEREBRAS = 'cerebras',
   GEMINI = 'gemini',
   SONIOX = 'soniox',
+  SPEECHMATICS = 'speechmatics',
 }

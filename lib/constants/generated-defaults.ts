@@ -166,4 +166,9 @@ SORTIE: le texte reformaté uniquement, propre, structuré et lisible. Respecter
 
   // Vision model for CONTEXT_AWARENESS
   visionModel: 'gemini-3.1-flash-lite-preview',
+
+  // Speechmatics settings
+  speechmaticsLanguage: 'fr',
+  speechmaticsOperatingPoint: 'enhanced',
+  speechmaticsRemoveDisfluencies: false,
 } as const

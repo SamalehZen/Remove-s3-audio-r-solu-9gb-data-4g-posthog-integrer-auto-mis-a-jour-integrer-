@@ -90,6 +90,7 @@
     "@sentry/electron": "^6.9.0",
     "@sentry/vite-plugin": "^4.1.0",
     "@soniox/node": "^1.1.1",
+    "@speechmatics/real-time-client": "8.3.0",
     "@supabase/supabase-js": "^2.95.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
