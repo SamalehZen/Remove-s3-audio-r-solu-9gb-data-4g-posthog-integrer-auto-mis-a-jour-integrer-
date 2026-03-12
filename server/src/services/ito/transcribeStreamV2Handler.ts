@@ -117,6 +117,13 @@ export class TranscribeStreamV2Handler {
       let skippedLlmAdjustment = false
 
       if (canUseSingleCall) {
+        if (context?.signal.aborted) {
+          console.log(
+            `🚫 [${new Date().toISOString()}] Stream cancelled before single-call ASR, skipping transcription`,
+          )
+          throw new ConnectError('Stream cancelled by client', Code.Canceled)
+        }
+
         const asrClient = getAsrProvider(asrConfig.asrProvider)
         if (typeof asrClient.transcribeAndClean === 'function') {
           console.log(`⚡ [${new Date().toISOString()}] Using single-call ASR+cleanup for Gemini TRANSCRIBE mode`)
@@ -132,6 +139,9 @@ export class TranscribeStreamV2Handler {
           )
           transcript = result.transcript
           skippedLlmAdjustment = result.wasCleanedInline
+          console.log(
+            `📝 [${new Date().toISOString()}] Received transcript (single-call): "${transcript}"`,
+          )
         } else {
           transcript = await serverTimingCollector.timeAsync(
             ServerTimingEventName.ASR_TRANSCRIPTION,
