@@ -528,7 +528,7 @@ export class ItoSessionManager {
       await this.completeSonioxSession()
       return
     }
-    if (this.isSpeechmaticsMode && this.speechmaticsSessionActive) {
+    if (this.isSpeechmaticsMode) {
       await this.completeSpeechmaticsSession()
       return
     }

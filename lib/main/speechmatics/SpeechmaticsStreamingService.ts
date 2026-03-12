@@ -70,7 +70,14 @@ export class SpeechmaticsStreamingService extends EventEmitter {
         if (data.message === 'AddPartialTranscript' && enablePartials) {
           const partialText = this.assembleText(data.results)
           if (partialText) {
-            this.emit('partial-text', this.accumulatedText + partialText)
+            let preview = this.accumulatedText
+            if (preview.length > 0) {
+              const firstResult = (data.results || []).find((r: any) => r.alternatives?.[0]?.content)
+              const startsWithAttachedPunct = firstResult?.type === 'punctuation' &&
+                (firstResult?.attaches_to === 'previous' || firstResult?.attaches_to === 'both')
+              preview += startsWithAttachedPunct ? '' : ' '
+            }
+            this.emit('partial-text', preview + partialText)
           }
         } else if (data.message === 'AddTranscript') {
           const now = Date.now()
@@ -82,7 +89,17 @@ export class SpeechmaticsStreamingService extends EventEmitter {
           }
 
           const text = this.assembleText(data.results)
-          this.accumulatedText += text
+          if (text) {
+            if (this.accumulatedText.length > 0) {
+              const firstResult = (data.results || []).find((r: any) => r.alternatives?.[0]?.content)
+              const startsWithAttachedPunct = firstResult?.type === 'punctuation' &&
+                (firstResult?.attaches_to === 'previous' || firstResult?.attaches_to === 'both')
+              if (!startsWithAttachedPunct) {
+                this.accumulatedText += ' '
+              }
+            }
+            this.accumulatedText += text
+          }
           this.emit('final-text', this.accumulatedText)
         } else if (data.message === 'EndOfTranscript') {
           console.log(
