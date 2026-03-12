@@ -365,6 +365,14 @@ export class SyncService {
               remoteSettings.llm?.transcriptionPrompt ?? null,
             editingPrompt: remoteSettings.llm?.editingPrompt ?? null,
             noSpeechThreshold: remoteSettings.llm?.noSpeechThreshold ?? null,
+            sonioxFastLlmEnabled: currentLocalSettings?.llm?.sonioxFastLlmEnabled ?? null,
+            sonioxFastLlmProvider: currentLocalSettings?.llm?.sonioxFastLlmProvider ?? null,
+            sonioxFastLlmModel: currentLocalSettings?.llm?.sonioxFastLlmModel ?? null,
+            sonioxFastPrompt: currentLocalSettings?.llm?.sonioxFastPrompt ?? null,
+            visionModel: currentLocalSettings?.llm?.visionModel ?? null,
+            speechmaticsLanguage: currentLocalSettings?.llm?.speechmaticsLanguage ?? null,
+            speechmaticsOperatingPoint: currentLocalSettings?.llm?.speechmaticsOperatingPoint ?? null,
+            speechmaticsRemoveDisfluencies: currentLocalSettings?.llm?.speechmaticsRemoveDisfluencies ?? null,
           },
           // Preserve local-only settings that aren't synced to the server
           grammarServiceEnabled:

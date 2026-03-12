@@ -16,6 +16,11 @@ import {
   type SonioxContextConfig,
 } from './soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
+import {
+  SpeechmaticsStreamingService,
+  type SpeechmaticsStreamingOptions,
+} from './speechmatics/SpeechmaticsStreamingService'
+import { speechmaticsTempKeyManager } from './speechmatics/SpeechmaticsTempKeyManager'
 import { audioRecorderService } from '../media/audio'
 import { unmuteSystemAudio } from '../media/systemAudio'
 import { itoHttpClient } from '../clients/itoHttpClient'
@@ -59,6 +64,12 @@ export class ItoSessionManager {
   private sonioxPendingChunksCount = 0
   private sonioxPendingBytesAtFlush = 0
   // ────────────────────────────────────────────────────────────────────────────
+
+  private speechmaticsService: SpeechmaticsStreamingService | null = null
+  private isSpeechmaticsMode = false
+  private speechmaticsAudioHandler: ((chunk: Buffer) => void) | null = null
+  private speechmaticsSessionActive = false
+  private speechmaticsSessionStartTime = 0
 
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
@@ -115,6 +126,7 @@ export class ItoSessionManager {
 
     const { llm } = getAdvancedSettings()
     const isSoniox = llm?.asrProvider === 'soniox'
+    const isSpeechmatics = llm?.asrProvider === 'speechmatics'
 
     if (
       effectiveMode === ItoMode.TRANSLATE ||
@@ -122,6 +134,8 @@ export class ItoSessionManager {
       isSoniox
     ) {
       await this.startSonioxSession(effectiveMode)
+    } else if (isSpeechmatics) {
+      await this.startSpeechmaticsSession(effectiveMode)
     } else {
       await this.startGrpcSession(effectiveMode)
     }
@@ -436,7 +450,7 @@ export class ItoSessionManager {
   public setMode(mode: ItoMode) {
     this.currentMode = mode
 
-    if (this.isSonioxMode) {
+    if (this.isSonioxMode || this.isSpeechmaticsMode) {
       recordingStateNotifier.notifyRecordingStarted(mode)
       return
     }
@@ -448,6 +462,24 @@ export class ItoSessionManager {
   public async cancelSession() {
     contextGrabber.setCustomModePrompt(null)
     this.resolvedCustomMode = null
+
+    if (this.isSpeechmaticsMode) {
+      this.speechmaticsSessionActive = false
+
+      this.speechmaticsService?.cancel()
+      this.speechmaticsService = null
+      if (this.speechmaticsAudioHandler) {
+        audioRecorderService.off('audio-chunk', this.speechmaticsAudioHandler)
+        this.speechmaticsAudioHandler = null
+      }
+      await voiceInputService.stopAudioRecording()
+      recordingStateNotifier.notifyRecordingStopped()
+      timingCollector.clearInteraction()
+      interactionManager.clearCurrentInteraction()
+      this.cleanupSpeechmaticsState()
+      allowAppNap()
+      return
+    }
 
     if (this.isSonioxMode) {
       this.sonioxSessionActive = false
@@ -494,6 +526,10 @@ export class ItoSessionManager {
   public async completeSession() {
     if (this.isSonioxMode) {
       await this.completeSonioxSession()
+      return
+    }
+    if (this.isSpeechmaticsMode && this.speechmaticsSessionActive) {
+      await this.completeSpeechmaticsSession()
       return
     }
 
@@ -1178,6 +1214,430 @@ export class ItoSessionManager {
     interactionManager.clearCurrentInteraction()
     itoStreamController.clearInteractionAudio()
     allowAppNap()
+  }
+
+  private async startSpeechmaticsSession(mode: ItoMode) {
+    this.isSpeechmaticsMode = true
+    this.speechmaticsSessionActive = true
+    this.speechmaticsSessionStartTime = Date.now()
+
+    console.log(`[itoSessionManager] [SPEECHMATICS-START] mode=${mode}`)
+
+    const pendingChunks: Buffer[] = []
+    let pendingBytes = 0
+    let speechmaticsReady = false
+    const MAX_PENDING_BYTES = 512 * 1024
+
+    this.speechmaticsAudioHandler = (chunk: Buffer) => {
+      if (speechmaticsReady && this.speechmaticsService) {
+        this.speechmaticsService.sendAudio(chunk)
+      } else if (pendingBytes < MAX_PENDING_BYTES) {
+        pendingChunks.push(chunk)
+        pendingBytes += chunk.length
+      }
+    }
+
+    audioRecorderService.on('audio-chunk', this.speechmaticsAudioHandler)
+    voiceInputService.startAudioRecording()
+    recordingStateNotifier.notifyRecordingStarted(mode)
+    preventAppNap()
+
+    try {
+      const jwt = await speechmaticsTempKeyManager.getJwt()
+
+      if (!this.speechmaticsSessionActive) {
+        console.log('[itoSessionManager] Speechmatics session cancelled during JWT fetch')
+        return
+      }
+
+      const { llm } = getAdvancedSettings()
+
+      const userId = getCurrentUserId() || 'local-user'
+      const dictionaryItems = await DictionaryTable.findAll(userId)
+      const additionalVocab: string[] = dictionaryItems
+        .filter(item => !item.deleted_at && item.word?.trim())
+        .map(item => item.word.trim())
+
+      const speechmaticsOptions: SpeechmaticsStreamingOptions = {
+        language: llm?.speechmaticsLanguage || 'fr',
+        operatingPoint: (llm?.speechmaticsOperatingPoint as 'standard' | 'enhanced') || 'enhanced',
+        enablePartials: true,
+        removeDisfluencies: llm?.speechmaticsRemoveDisfluencies || false,
+        additionalVocab: additionalVocab.length > 0 ? additionalVocab : undefined,
+      }
+
+      this.speechmaticsService = new SpeechmaticsStreamingService()
+
+      this.speechmaticsService.on('error', (error: Error) => {
+        this.handleSpeechmaticsStreamError(error)
+      })
+
+      this.speechmaticsService.on('finished', () => {
+        console.log('[itoSessionManager] [SPEECHMATICS] Session finished')
+      })
+
+      await this.speechmaticsService.start(jwt, speechmaticsOptions)
+
+      speechmaticsReady = true
+      if (pendingChunks.length > 0) {
+        console.log(`[itoSessionManager] [SPEECHMATICS] Flushing ${pendingChunks.length} pending chunks (${pendingBytes} bytes)`)
+        for (const chunk of pendingChunks) {
+          this.speechmaticsService.sendAudio(chunk)
+        }
+      }
+    } catch (error: any) {
+      console.error('[itoSessionManager] [SPEECHMATICS] Failed to start:', error)
+      if (this.speechmaticsAudioHandler) {
+        audioRecorderService.off('audio-chunk', this.speechmaticsAudioHandler)
+        this.speechmaticsAudioHandler = null
+      }
+      this.speechmaticsService = null
+      recordingStateNotifier.notifyRecordingStopped()
+      voiceInputService.stopAudioRecording().catch(console.error)
+      allowAppNap()
+      return
+    }
+
+    this.contextGatherPromise = this.gatherAndCacheContext(mode)
+    this.contextGatherPromise.catch(error => {
+      console.error('[itoSessionManager] Failed to gather context for Speechmatics:', error)
+    })
+
+    timingCollector.startInteraction()
+    timingCollector.startTiming(TimingEventName.INTERACTION_ACTIVE)
+  }
+
+  private async completeSpeechmaticsSession() {
+    const completeCallTime = Date.now()
+    const sessionAge = this.speechmaticsSessionStartTime > 0
+      ? completeCallTime - this.speechmaticsSessionStartTime : -1
+
+    if (!this.speechmaticsSessionActive) {
+      console.warn(
+        `[itoSessionManager] [SPEECHMATICS-COMPLETE] called but no active session, skipping | sessionAge=${sessionAge}ms`,
+      )
+      return
+    }
+    this.speechmaticsSessionActive = false
+
+    timingCollector.endTiming(TimingEventName.INTERACTION_ACTIVE)
+
+    const mode = this.currentMode
+    const service = this.speechmaticsService
+
+    const hasCustomPrompt = this.sonioxContext?.tone?.promptTemplate?.trim()
+
+    if (mode === ItoMode.TRANSCRIBE && !hasCustomPrompt) {
+      audioRecorderService.stopRecording()
+      if (this.speechmaticsAudioHandler) {
+        audioRecorderService.off('audio-chunk', this.speechmaticsAudioHandler)
+        this.speechmaticsAudioHandler = null
+      }
+      this.speechmaticsService = null
+      this.unmuteIfNeeded()
+
+      recordingStateNotifier.notifyProcessingStarted()
+      recordingStateNotifier.notifyRecordingStopped()
+
+      let rawTranscript = ''
+      if (service) {
+        try {
+          rawTranscript = await service.stop()
+          console.log(
+            `[itoSessionManager] [SPEECHMATICS-COMPLETE] service.stop() | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+          )
+        } catch (error) {
+          console.error('[itoSessionManager] [SPEECHMATICS-COMPLETE] service.stop() threw:', error)
+          rawTranscript = service.getAccumulatedText() || ''
+        }
+      }
+
+      if (!rawTranscript || rawTranscript.trim().length === 0) {
+        console.warn(`[itoSessionManager] [SPEECHMATICS-COMPLETE] No speech detected`)
+        recordingStateNotifier.notifyProcessingStopped()
+        allowAppNap()
+        this.cleanupSpeechmaticsState()
+        return
+      }
+
+      let textToInsert = rawTranscript
+
+      const ctx = this.sonioxContext
+      if (ctx?.replacements && ctx.replacements.length > 0) {
+        textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+      }
+
+      const advSettings = getAdvancedSettings()
+      const sonioxFastEnabled = advSettings.llm?.sonioxFastLlmEnabled
+      if (sonioxFastEnabled && textToInsert.trim().length > 0) {
+        try {
+          const fastProvider = advSettings.llm?.sonioxFastLlmProvider || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmProvider
+          const fastModel = advSettings.llm?.sonioxFastLlmModel || DEFAULT_ADVANCED_SETTINGS.sonioxFastLlmModel
+          const fastPrompt = (advSettings.llm?.sonioxFastPrompt && advSettings.llm.sonioxFastPrompt.trim())
+            ? advSettings.llm.sonioxFastPrompt
+            : DEFAULT_ADVANCED_SETTINGS.sonioxFastPrompt
+
+          const fastRequestBody: Record<string, any> = {
+            transcript: textToInsert,
+            mode: 'transcribe',
+            llmSettings: {
+              llmProvider: fastProvider,
+              llmModel: fastModel || undefined,
+              llmTemperature: 0.1,
+              transcriptionPrompt: fastPrompt,
+            },
+          }
+          if (ctx?.userDetails) {
+            fastRequestBody.context = {
+              userDetailsContext: this.buildUserDetailsContextString(ctx.userDetails),
+            }
+          }
+          const fastStart = Date.now()
+          const fastResponse = await itoHttpClient.post(
+            '/adjust-transcript',
+            fastRequestBody,
+            { requireAuth: true, timeoutMs: 5000 },
+          )
+          if (fastResponse?.success && fastResponse?.transcript) {
+            textToInsert = fastResponse.transcript
+            console.log(
+              `[itoSessionManager] [SPEECHMATICS-FASTLLM] Applied in ${Date.now() - fastStart}ms`,
+            )
+          }
+        } catch (error) {
+          console.error('[itoSessionManager] [SPEECHMATICS-FASTLLM] Failed, using raw:', error)
+        }
+      }
+
+      const { grammarServiceEnabled } = advSettings
+      if (grammarServiceEnabled) {
+        textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+        textToInsert = this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+      }
+
+      this.textInserter.insertText(textToInsert)
+      recordingStateNotifier.notifyProcessingStopped()
+
+      interactionManager
+        .createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+        .catch(error => console.error('[itoSessionManager] Failed to create interaction:', error))
+
+      allowAppNap()
+      this.cleanupSpeechmaticsState()
+      return
+    }
+
+    await voiceInputService.stopAudioRecording()
+    if (this.speechmaticsAudioHandler) {
+      audioRecorderService.off('audio-chunk', this.speechmaticsAudioHandler)
+      this.speechmaticsAudioHandler = null
+    }
+    this.speechmaticsService = null
+
+    recordingStateNotifier.notifyProcessingStarted()
+    recordingStateNotifier.notifyRecordingStopped()
+
+    let rawTranscript = ''
+    if (service) {
+      try {
+        rawTranscript = await service.stop()
+      } catch (error) {
+        console.error('[itoSessionManager] [SPEECHMATICS-COMPLETE] service.stop() threw:', error)
+        rawTranscript = service.getAccumulatedText() || ''
+      }
+    }
+
+    if (!rawTranscript || rawTranscript.trim().length === 0) {
+      console.warn('[itoSessionManager] [SPEECHMATICS-COMPLETE] No speech (non-TRANSCRIBE)')
+      recordingStateNotifier.notifyProcessingStopped()
+      allowAppNap()
+      this.cleanupSpeechmaticsState()
+      return
+    }
+
+    if (this.contextGatherPromise) {
+      try {
+        await this.contextGatherPromise
+      } catch {
+        // already logged
+      }
+      this.contextGatherPromise = null
+    }
+
+    try {
+      const { llm } = getAdvancedSettings()
+      const ctx = this.sonioxContext
+
+      if (mode === ItoMode.CONTEXT_AWARENESS && ctx?.screenCaptureBase64) {
+        const lightBody: Record<string, any> = {
+          transcript: rawTranscript,
+          screenshotBase64: ctx.screenCaptureBase64,
+          screenshotMimeType: ctx.screenCaptureMimeType || 'image/jpeg',
+          llmSettings: {
+            llmTemperature: llm?.llmTemperature ?? undefined,
+            visionModel: llm?.visionModel || undefined,
+          },
+          context: {
+            windowTitle: ctx.windowTitle || '',
+            appName: ctx.appName || '',
+            browserUrl: ctx.browserUrl || undefined,
+            tonePrompt: ctx.tone?.promptTemplate || undefined,
+            userDetailsContext: ctx.userDetails
+              ? this.buildUserDetailsContextString(ctx.userDetails)
+              : undefined,
+          },
+        }
+
+        try {
+          const lightResponse = await itoHttpClient.post(
+            '/adjust-context-light',
+            lightBody,
+            { requireAuth: true, timeoutMs: 5000 },
+          )
+          if (lightResponse?.success && lightResponse?.transcript) {
+            let textToInsert = lightResponse.transcript
+
+            if (ctx?.replacements && ctx.replacements.length > 0) {
+              textToInsert = this.applyCustomReplacements(textToInsert, ctx.replacements)
+            }
+
+            const { grammarServiceEnabled } = getAdvancedSettings()
+            if (grammarServiceEnabled) {
+              textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+              textToInsert = this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+            }
+
+            this.textInserter.insertText(textToInsert)
+
+            interactionManager.createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+              .catch(error => console.error('[itoSessionManager] Failed to create interaction:', error))
+
+            allowAppNap()
+            this.cleanupSpeechmaticsState()
+            return
+          }
+        } catch (lightError) {
+          console.error('[itoSessionManager] adjust-context-light failed, falling back:', lightError)
+        }
+      }
+
+      const requestBody: Record<string, any> = {
+        transcript: rawTranscript,
+        mode:
+          mode === ItoMode.EDIT ? 'edit'
+            : mode === ItoMode.CONTEXT_AWARENESS ? 'context_awareness'
+            : 'transcribe',
+        llmSettings: {
+          llmProvider: llm?.llmProvider || undefined,
+          llmModel: llm?.llmModel || undefined,
+          llmTemperature: llm?.llmTemperature ?? undefined,
+          transcriptionPrompt: llm?.transcriptionPrompt || undefined,
+          editingPrompt: llm?.editingPrompt || undefined,
+          visionModel: llm?.visionModel || undefined,
+        },
+      }
+
+      if (ctx) {
+        requestBody.context = {
+          windowTitle: ctx.windowTitle || '',
+          appName: ctx.appName || '',
+          contextText: ctx.contextText || '',
+          browserUrl: ctx.browserUrl || undefined,
+          browserDomain: ctx.browserDomain || undefined,
+          tonePrompt: ctx.tone?.promptTemplate || undefined,
+          userDetailsContext: ctx.userDetails
+            ? this.buildUserDetailsContextString(ctx.userDetails)
+            : undefined,
+        }
+        if (mode === ItoMode.CONTEXT_AWARENESS && ctx.screenCaptureBase64) {
+          requestBody.screenshotBase64 = ctx.screenCaptureBase64
+        }
+        if (ctx.replacements && ctx.replacements.length > 0) {
+          requestBody.replacements = ctx.replacements.map(r => ({
+            fromText: r.from,
+            toText: r.to,
+          }))
+        }
+      }
+
+      const response = await itoHttpClient.post(
+        '/adjust-transcript',
+        requestBody,
+        { requireAuth: true },
+      )
+
+      if (response?.success && response?.transcript) {
+        let textToInsert = response.transcript
+
+        const { grammarServiceEnabled } = getAdvancedSettings()
+        if (grammarServiceEnabled) {
+          textToInsert = this.grammarRulesService.setCaseFirstWord(textToInsert)
+          textToInsert = this.grammarRulesService.addLeadingSpaceIfNeeded(textToInsert)
+        }
+
+        this.textInserter.insertText(textToInsert)
+      } else {
+        console.error('[itoSessionManager] LLM adjustment failed:', response?.error)
+        this.textInserter.insertText(rawTranscript)
+      }
+    } catch (error) {
+      console.error('[itoSessionManager] Error during LLM adjustment:', error)
+      this.textInserter.insertText(rawTranscript)
+    } finally {
+      recordingStateNotifier.notifyProcessingStopped()
+    }
+
+    try {
+      await interactionManager.createInteraction(rawTranscript, Buffer.alloc(0), 16000, undefined)
+    } catch (error) {
+      console.error('[itoSessionManager] Failed to create interaction:', error)
+    }
+
+    allowAppNap()
+    this.cleanupSpeechmaticsState()
+  }
+
+  private handleSpeechmaticsStreamError(error: Error) {
+    const sessionAge = this.speechmaticsSessionStartTime > 0
+      ? Date.now() - this.speechmaticsSessionStartTime : -1
+
+    if (!this.speechmaticsSessionActive) {
+      console.warn(
+        `[itoSessionManager] [SPEECHMATICS-ERROR] Error after session ended (age=${sessionAge}ms), ignoring: ${error.message}`,
+      )
+      return
+    }
+
+    console.error(
+      `[itoSessionManager] [SPEECHMATICS-ERROR] Stream error (age=${sessionAge}ms): ${error.message}`,
+    )
+
+    this.speechmaticsSessionActive = false
+
+    if (this.speechmaticsAudioHandler) {
+      audioRecorderService.off('audio-chunk', this.speechmaticsAudioHandler)
+      this.speechmaticsAudioHandler = null
+    }
+
+    this.speechmaticsService?.cancel()
+    this.speechmaticsService = null
+
+    voiceInputService.stopAudioRecording().catch(console.error)
+    recordingStateNotifier.notifyRecordingStopped()
+    timingCollector.clearInteraction()
+    interactionManager.clearCurrentInteraction()
+    allowAppNap()
+    this.cleanupSpeechmaticsState()
+  }
+
+  private cleanupSpeechmaticsState() {
+    timingCollector.finalizeInteraction()
+    interactionManager.clearCurrentInteraction()
+    this.isSpeechmaticsMode = false
+    this.sonioxContext = null
+    this.contextGatherPromise = null
+    contextGrabber.setCustomModePrompt(null)
+    this.resolvedCustomMode = null
   }
 
   private handleSonioxStreamError(error: Error) {

@@ -17,6 +17,9 @@ export interface LlmSettings {
   sonioxFastLlmModel: string | null
   sonioxFastPrompt: string | null
   visionModel: string | null
+  speechmaticsLanguage: string | null
+  speechmaticsOperatingPoint: string | null
+  speechmaticsRemoveDisfluencies: boolean | null
 }
 
 interface AdvancedSettingsState {

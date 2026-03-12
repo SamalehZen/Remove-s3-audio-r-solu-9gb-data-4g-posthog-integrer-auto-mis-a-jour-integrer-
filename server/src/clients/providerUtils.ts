@@ -4,6 +4,7 @@ import { groqClient } from './groqClient.js'
 import { cerebrasClient } from './cerebrasClient.js'
 import { geminiClient } from './geminiClient.js'
 import { sonioxClient } from './sonioxClient.js'
+import { speechmaticsClient } from './speechmaticsClient.js'
 import { ClientUnavailableError } from './errors.js'
 
 export function getAsrProvider(providerName: string): LlmProvider {
@@ -55,6 +56,9 @@ export function getAvailableAsrProviders(): ClientProvider[] {
   }
   if (sonioxClient && sonioxClient.isAvailable) {
     providers.push(ClientProvider.SONIOX)
+  }
+  if (speechmaticsClient && speechmaticsClient.isAvailable) {
+    providers.push(ClientProvider.SPEECHMATICS)
   }
   return providers
 }
