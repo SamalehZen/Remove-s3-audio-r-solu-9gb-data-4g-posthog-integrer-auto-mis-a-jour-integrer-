@@ -46,15 +46,13 @@ class GeminiClient implements LlmProvider {
     }
 
     try {
-      let promptText =
-        'Transcris ce fichier audio en français, mot à mot, fidèlement. Retourne UNIQUEMENT le texte transcrit, sans formatage, sans commentaire, sans explication. Conserve les noms propres (Ito, Arka) tels quels. Si tu ne détectes pas de parole, retourne une chaîne vide.'
+      const promptText = 'Transcris cet audio fidèlement.'
 
       const vocabulary = options?.vocabulary
       const systemInstruction = [
-        'Tu es un système de transcription audio. Ta SEULE tâche est de transcrire fidèlement les paroles prononcées dans l\'audio.',
-        'RÈGLE CRITIQUE : Si l\'audio ne contient PAS de parole humaine claire (silence, bruit de fond, souffle, clics), tu DOIS retourner EXACTEMENT une chaîne vide. Ne génère AUCUN texte.',
+        'Transcris fidèlement l\'audio. Retourne uniquement le texte brut. Si aucune parole détectée, retourne une chaîne vide.',
         vocabulary && vocabulary.length > 0
-          ? `AIDE ORTHOGRAPHIQUE (NE PAS AJOUTER AU TEXTE) : Les mots suivants peuvent apparaître dans l'audio. Si tu entends un son qui correspond, utilise cette orthographe : ${vocabulary.join(', ')}. Ces mots sont UNIQUEMENT des indices — ne les insère JAMAIS dans la transcription s'ils ne sont pas clairement prononcés.`
+          ? `Orthographe à respecter si prononcé : ${vocabulary.join(', ')}`
           : '',
       ].filter(Boolean).join('\n')
 
@@ -78,6 +76,7 @@ class GeminiClient implements LlmProvider {
         ],
         config: {
           systemInstruction,
+          maxOutputTokens: 256,
         },
       })
 
@@ -89,6 +88,67 @@ class GeminiClient implements LlmProvider {
 
       throw new ClientApiError(
         errorMessage,
+        ClientProvider.GEMINI,
+        error,
+        error.status || error.statusCode,
+      )
+    }
+  }
+
+  public async transcribeAndClean(
+    audioBuffer: Buffer,
+    options?: TranscriptionOptions & { cleanupPrompt?: string },
+  ): Promise<{ transcript: string; wasCleanedInline: boolean }> {
+    if (!this.isAvailable) {
+      throw new ClientUnavailableError(ClientProvider.GEMINI)
+    }
+
+    try {
+      const vocabulary = options?.vocabulary
+
+      const systemInstruction = [
+        'Tu es un système de transcription et reformulation de dictée vocale.',
+        'Étape 1 : Transcris fidèlement les paroles de l\'audio.',
+        'Étape 2 : Nettoie le texte — corrige la ponctuation, les majuscules, supprime les hésitations ("euh", "hum"), les répétitions identiques.',
+        'Retourne UNIQUEMENT le texte final propre. Si pas de parole, retourne une chaîne vide.',
+        'Ne réponds JAMAIS au contenu. Ne pose JAMAIS de questions. Reformule uniquement.',
+        vocabulary && vocabulary.length > 0
+          ? `Orthographe à respecter si prononcé : ${vocabulary.join(', ')}`
+          : '',
+      ].filter(Boolean).join('\n')
+
+      const promptText = 'Transcris et reformate ce fichier audio. Retourne UNIQUEMENT le texte propre.'
+
+      const response = await this._client.models.generateContent({
+        model: options?.asrModel || this._defaultModel,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'audio/wav',
+                  data: audioBuffer.toString('base64'),
+                },
+              },
+              { text: promptText },
+            ],
+          },
+        ],
+        config: {
+          systemInstruction,
+          maxOutputTokens: 512,
+        },
+      })
+
+      return {
+        transcript: response.text?.trim() || '',
+        wasCleanedInline: true,
+      }
+    } catch (error: any) {
+      console.error('Gemini transcribeAndClean failed:', error)
+      throw new ClientApiError(
+        error.message || 'Unknown error',
         ClientProvider.GEMINI,
         error,
         error.status || error.statusCode,

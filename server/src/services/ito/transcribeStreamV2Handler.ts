@@ -103,12 +103,49 @@ export class TranscribeStreamV2Handler {
       // Extract configuration
       const asrConfig = this.extractAsrConfig(mergedConfig)
 
-      // Time transcription
-      let transcript = await serverTimingCollector.timeAsync(
-        ServerTimingEventName.ASR_TRANSCRIPTION,
-        () => this.transcribeAudioData(fullAudioWAV, asrConfig, context),
-        interactionId,
-      )
+      // Determine if we can use single-call optimization
+      // Requirements:
+      // 1. ASR provider is gemini
+      // 2. Mode is EXPLICITLY set to TRANSCRIBE by client (not undefined/auto-detected)
+      // 3. Provider supports transcribeAndClean
+      const clientExplicitMode = mergedConfig.context?.mode
+      const canUseSingleCall =
+        asrConfig.asrProvider === 'gemini' &&
+        clientExplicitMode === ItoMode.TRANSCRIBE
+
+      let transcript: string
+      let skippedLlmAdjustment = false
+
+      if (canUseSingleCall) {
+        const asrClient = getAsrProvider(asrConfig.asrProvider)
+        if (typeof asrClient.transcribeAndClean === 'function') {
+          console.log(`⚡ [${new Date().toISOString()}] Using single-call ASR+cleanup for Gemini TRANSCRIBE mode`)
+          const result = await serverTimingCollector.timeAsync(
+            ServerTimingEventName.ASR_TRANSCRIPTION,
+            () => asrClient.transcribeAndClean!(fullAudioWAV, {
+              fileType: 'wav',
+              asrModel: asrConfig.asrModel,
+              noSpeechThreshold: asrConfig.noSpeechThreshold,
+              vocabulary: asrConfig.vocabulary,
+            }),
+            interactionId,
+          )
+          transcript = result.transcript
+          skippedLlmAdjustment = result.wasCleanedInline
+        } else {
+          transcript = await serverTimingCollector.timeAsync(
+            ServerTimingEventName.ASR_TRANSCRIPTION,
+            () => this.transcribeAudioData(fullAudioWAV, asrConfig, context),
+            interactionId,
+          )
+        }
+      } else {
+        transcript = await serverTimingCollector.timeAsync(
+          ServerTimingEventName.ASR_TRANSCRIPTION,
+          () => this.transcribeAudioData(fullAudioWAV, asrConfig, context),
+          interactionId,
+        )
+      }
 
       const trimmedTranscript = transcript.trim()
       if (!trimmedTranscript || trimmedTranscript.length < 2) {
@@ -154,24 +191,32 @@ export class TranscribeStreamV2Handler {
         asrConfig.noSpeechThreshold,
       )
 
-      // Time transcript adjustment (only happens in EDIT mode)
-      // transcript = await serverTimingCollector.timeAsync(
-      //   ServerTimingEventName.LLM_ADJUSTMENT,
-      //   () =>
-      //     this.adjustTranscriptForMode(
-      //       transcript,
-      //       mode,
-      //       windowContext,
-      //       advancedSettings,
-      //     ),
-      //   interactionId,
-      // )
-      transcript = await this.adjustTranscriptForMode(
-        transcript,
-        mode,
-        windowContext,
-        advancedSettings,
-      )
+      // Skip LLM adjustment for short transcripts in TRANSCRIBE mode
+      // This applies to ALL providers (Gemini, Groq) as a universal optimization
+      const wordCount = trimmedTranscript.split(/\s+/).length
+
+      if (
+        !skippedLlmAdjustment &&
+        mode === ItoMode.TRANSCRIBE &&
+        wordCount <= 10
+      ) {
+        console.log(
+          `⏩ [${new Date().toISOString()}] Short transcript (${wordCount} words) in TRANSCRIBE mode, skipping LLM adjustment`,
+        )
+        skippedLlmAdjustment = true
+      }
+
+      // LLM adjustment — skip only if single-call already handled it or short-text bypass
+      if (!skippedLlmAdjustment) {
+        transcript = await this.adjustTranscriptForMode(
+          transcript,
+          mode,
+          windowContext,
+          advancedSettings,
+        )
+      } else {
+        transcript = this.filterLeakedContext(transcript, windowContext.userDetailsContext)
+      }
 
       const replacements = mergedConfig.replacements || []
       if (replacements.length > 0) {
