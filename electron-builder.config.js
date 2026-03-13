@@ -85,7 +85,9 @@ module.exports = {
     extraResources: [
       ...getMacResources(),
       { from: 'resources/build/ito-logo.png', to: 'build/ito-logo.png' },
-    ],: {
+    ],
+  },
+  dmg: {
     artifactName:
       stage === 'prod'
         ? 'Ito-Installer.${ext}'
