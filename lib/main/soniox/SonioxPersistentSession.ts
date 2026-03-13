@@ -54,7 +54,7 @@ export interface SonioxContextConfig {
   translation_terms?: Array<{ source: string; target: string }>
 }
 
-interface EnsureReadyOptions {
+export interface EnsureReadyOptions {
   disableEndpointDetection?: boolean
   context?: SonioxContextConfig
   languageHints?: string[]
@@ -244,14 +244,23 @@ export class SonioxPersistentSession extends EventEmitter {
     const utteranceStart = this.currentUtteranceStartTime
     const textBeforePause = this.currentUtteranceText
 
-    this.session!.pause()
+    if (this.session) {
+      try {
+        this.session.pause()
+      } catch (e) {
+        console.error(`[SonioxPersistent:${this.sessionId}] Error calling pause():`, e)
+      }
+    }
 
     if (this.currentUtteranceTokenCount > 0 || textBeforePause.length > 0) {
       await this.waitForFinalTokens(500)
     }
 
-    this.transitionTo('paused')
-    this.startIdleTimer()
+    if (this.state === 'streaming') {
+      this.transitionTo('paused')
+      this.startIdleTimer()
+    }
+
     this.totalUtterances++
 
     const result: UtteranceResult = {
@@ -274,10 +283,29 @@ export class SonioxPersistentSession extends EventEmitter {
       return
     }
 
-    this.session.sendAudio(chunk)
-    this.currentUtteranceChunks++
-    this.totalChunksSent++
-    this.totalBytesSent += chunk.length
+    try {
+      this.session.sendAudio(chunk)
+      this.currentUtteranceChunks++
+      this.totalChunksSent++
+      this.totalBytesSent += chunk.length
+
+      if (this.totalChunksSent % 200 === 0) {
+        console.log(
+          `[SonioxPersistent:${this.sessionId}] Audio stats: chunks=${this.totalChunksSent} bytes=${(this.totalBytesSent / 1024).toFixed(1)}KB sessionAge=${Date.now() - this.sessionStartTime}ms utterance=#${this.totalUtterances + 1}`,
+        )
+      }
+    } catch (error) {
+      console.error(
+        `[SonioxPersistent:${this.sessionId}] sendAudio error at chunk #${this.totalChunksSent + 1}:`,
+        error,
+      )
+      this.lastError = error instanceof Error ? error.message : String(error)
+      this.needsReconnect = true
+      this.reconnectCount++
+      this.transitionTo('idle')
+      this.cleanupSession()
+      this.emit('error', error instanceof Error ? error : new Error('Failed to send audio chunk'))
+    }
   }
 
   close(): void {
@@ -346,6 +374,13 @@ export class SonioxPersistentSession extends EventEmitter {
     })
 
     session.on('error', (error: Error) => {
+      if (this.state === 'idle' || this.state === 'closing') {
+        console.log(
+          `[SonioxPersistent:${this.sessionId}] Error in ${this.state} state (already handled), ignoring: ${error.message}`,
+        )
+        return
+      }
+
       const errorCode = (error as any).code ?? 'unknown'
       const errorStatus = (error as any).statusCode ?? 'unknown'
       const is503 =
@@ -357,14 +392,14 @@ export class SonioxPersistentSession extends EventEmitter {
         String(error.message).toLowerCase().includes('quota')
 
       console.error(
-        `[SonioxPersistent:${this.sessionId}] Error | age=${Date.now() - this.sessionStartTime}ms | is503=${is503} | isQuota=${isQuota} | ${error.message}`,
+        `[SonioxPersistent:${this.sessionId}] Error | state=${this.state} | age=${Date.now() - this.sessionStartTime}ms | is503=${is503} | isQuota=${isQuota} | ${error.message}`,
       )
 
       this.lastError = error.message
       this.needsReconnect = true
       this.reconnectCount++
-      this.cleanupSession()
       this.transitionTo('idle')
+      this.cleanupSession()
       this.emit('error', error)
     })
 
@@ -377,14 +412,14 @@ export class SonioxPersistentSession extends EventEmitter {
       }
 
       console.error(
-        `[SonioxPersistent:${this.sessionId}] Unexpected disconnect | reason="${reason ?? 'none'}" | age=${Date.now() - this.sessionStartTime}ms`,
+        `[SonioxPersistent:${this.sessionId}] Unexpected disconnect | reason="${reason ?? 'none'}" | state=${this.state} | age=${Date.now() - this.sessionStartTime}ms`,
       )
 
       this.lastError = `Unexpected disconnect: ${reason ?? 'none'}`
       this.needsReconnect = true
       this.reconnectCount++
-      this.cleanupSession()
       this.transitionTo('idle')
+      this.cleanupSession()
       this.emit('error', new Error(`Unexpected disconnect: ${reason ?? 'none'}`))
     })
 
@@ -478,8 +513,18 @@ export class SonioxPersistentSession extends EventEmitter {
 
   private waitForFinalTokens(maxWaitMs: number): Promise<void> {
     return new Promise((resolve) => {
+      let settled = false
       let lastTokenTime = Date.now()
       const startTime = Date.now()
+
+      const cleanup = () => {
+        if (settled) return
+        settled = true
+        clearInterval(checkInterval)
+        clearTimeout(safetyTimeout)
+        this.off('token', onToken)
+        resolve()
+      }
 
       const onToken = () => {
         lastTokenTime = Date.now()
@@ -490,17 +535,11 @@ export class SonioxPersistentSession extends EventEmitter {
         const sinceLastToken = Date.now() - lastTokenTime
         const totalElapsed = Date.now() - startTime
         if (sinceLastToken > 100 || totalElapsed > maxWaitMs) {
-          clearInterval(checkInterval)
-          this.off('token', onToken)
-          resolve()
+          cleanup()
         }
       }, 50)
 
-      setTimeout(() => {
-        clearInterval(checkInterval)
-        this.off('token', onToken)
-        resolve()
-      }, maxWaitMs)
+      const safetyTimeout = setTimeout(cleanup, maxWaitMs)
     })
   }
 }
