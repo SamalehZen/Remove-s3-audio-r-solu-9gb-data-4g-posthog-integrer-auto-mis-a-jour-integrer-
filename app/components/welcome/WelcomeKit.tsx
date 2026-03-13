@@ -14,7 +14,6 @@ import { usePermissionsStore } from '../../store/usePermissionsStore'
 import { useOnboardingStore } from '@/app/store/useOnboardingStore'
 import { useAuthStore } from '@/app/store/useAuthStore'
 import IntroducingIntelligentModeContent from './contents/IntroducingIntelligentModeContent'
-import DomainSelectionContent from './contents/DomainSelectionContent'
 
 export default function WelcomeKit() {
   const { onboardingStep, incrementOnboardingStep } = useOnboardingStore()
@@ -28,7 +27,6 @@ export default function WelcomeKit() {
     MicrophoneTestContent,
     KeyboardTestContext,
     GoodToGoContent,
-    DomainSelectionContent,
     IntroducingIntelligentModeContent,
     AnyAppContent,
     TryItOutContent,

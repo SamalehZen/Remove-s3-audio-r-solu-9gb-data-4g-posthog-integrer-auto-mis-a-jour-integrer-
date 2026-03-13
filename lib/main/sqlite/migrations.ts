@@ -1211,4 +1211,26 @@ Un texte formel, clair et prêt à un usage professionnel. Rien d''autre.',
       CREATE INDEX IF NOT EXISTS idx_mode_activation_rules_value ON mode_activation_rules(value);
     `,
   },
+  {
+    id: '20260313000000_remove_domain_contexts',
+    up: `
+      DROP TABLE IF EXISTS domain_contexts;
+      ALTER TABLE user_details DROP COLUMN domain_context_slug;
+    `,
+    down: `
+      ALTER TABLE user_details ADD COLUMN domain_context_slug TEXT DEFAULT NULL;
+      CREATE TABLE IF NOT EXISTS domain_contexts (
+        slug TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        name_fr TEXT,
+        icon TEXT DEFAULT 'globe',
+        description TEXT,
+        description_fr TEXT,
+        context_json TEXT NOT NULL,
+        is_system INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `,
+  },
 ]
