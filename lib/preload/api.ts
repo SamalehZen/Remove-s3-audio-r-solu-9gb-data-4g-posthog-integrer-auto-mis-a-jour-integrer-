@@ -203,12 +203,6 @@ const api = {
     listInstalledAppsWithIcons: () =>
       ipcRenderer.invoke('mode-rules:list-installed-apps-with-icons'),
   },
-  domainContexts: {
-    list: () => ipcRenderer.invoke('domain-contexts:list'),
-    getUserDomain: () => ipcRenderer.invoke('domain-contexts:get-user-domain'),
-    setUserDomain: (slug: string | null) =>
-      ipcRenderer.invoke('domain-contexts:set-user-domain', slug),
-  },
   trial: {
     complete: () => ipcRenderer.invoke('trial:complete'),
     startAfterOnboarding: () =>

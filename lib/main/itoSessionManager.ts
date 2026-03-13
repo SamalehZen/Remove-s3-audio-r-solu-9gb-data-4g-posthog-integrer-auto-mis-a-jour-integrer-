@@ -13,7 +13,6 @@ import { timingCollector, TimingEventName } from './timing/TimingCollector'
 import {
   SonioxStreamingService,
   SonioxTranslationConfig,
-  type SonioxContextConfig,
 } from './soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
 import { audioRecorderService } from '../media/audio'
@@ -24,13 +23,10 @@ import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults'
 import { customModeResolver } from './context/CustomModeResolver'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
-import { domainContextProvider } from './context/DomainContextProvider'
-import { UserDetailsTable } from './sqlite/userDetailsRepo'
-import { DictionaryTable } from './sqlite/repo'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
-  private readonly SONIOX_CONNECT_TIMEOUT_MS = 10_000
+  private readonly SONIOX_CONNECT_TIMEOUT_MS = 5_000
   private readonly SONIOX_MAX_PENDING_BYTES = 512 * 1024
 
   private textInserter = new TextInserter()
@@ -49,15 +45,10 @@ export class ItoSessionManager {
   private sonioxSessionGeneration = 0
   private sonioxSessionActive = false
   private contextGatherPromise: Promise<void> | null = null
-  private preWarmedSonioxService: SonioxStreamingService | null = null
-  private preWarmTimestamp = 0
-  private readonly PRE_WARM_TTL_MS = 30_000
   private resolvedCustomMode: ResolvedCustomMode | null = null
 
   // ── Diagnostic: session lifecycle tracking ─────────────────────────────────
   private sonioxSessionStartTime = 0
-  private sonioxPendingChunksCount = 0
-  private sonioxPendingBytesAtFlush = 0
   // ────────────────────────────────────────────────────────────────────────────
 
   public async startSession(mode: ItoMode) {
@@ -188,8 +179,6 @@ export class ItoSessionManager {
     recordingStateNotifier.notifyRecordingStarted(mode)
     preventAppNap()
 
-    const contextPromise = this.gatherSonioxContext(mode)
-
     let connectTimeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const connectWithTimeout = async () => {
@@ -202,106 +191,22 @@ export class ItoSessionManager {
           return false
         }
 
-        const userId = getCurrentUserId() || 'local-user'
-        const userDetails = await UserDetailsTable.findByUserId(userId)
-        const hasDomainContext = !!userDetails?.domain_context_slug
-        const dictionaryItems = await DictionaryTable.findAll(userId)
-        const hasVocabulary = dictionaryItems.length > 0
-
-        const preWarmed = this.preWarmedSonioxService
-        this.preWarmedSonioxService = null
-
-        const preWarmAge = preWarmed ? Date.now() - this.preWarmTimestamp : -1
-        // [FINDING-1] Log de l'état de la connexion pre-warmée au moment de l'utilisation.
-        // Un WebSocket pré-chaufé peut être silencieusement fermé par Soniox côté serveur
-        // sans que le client le sache (si 'disconnected' n'est pas écouté — Finding 3).
-        // Si isActive=true mais disconnected a été reçu, le sendAudio va échouer silencieusement.
-        if (preWarmed) {
-          console.log(
-            `[itoSessionManager] [FINDING-1-PREWARM-HEALTH] Pre-warm snapshot at reuse decision:` +
-              ` age=${preWarmAge}ms (TTL=${this.PRE_WARM_TTL_MS}ms)` +
-              ` isActive=${preWarmed.isCurrentlyActive()}` +
-              ` hasErrored=${preWarmed.hasEncounteredError()}` +
-              ` sessionId=${preWarmed.getSessionId()}` +
-              ` sessionAge=${preWarmed.getSessionAgeMs()}ms` +
-              ` — Watch for DISCONNECTED event logged above for same sessionId`,
+        this.sonioxService = new SonioxStreamingService()
+        this.sonioxService.on('error', (error: Error) => {
+          console.error(
+            `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (session=${this.sonioxService?.getSessionId()}):`,
+            error.message,
           )
-        }
-        const preWarmValid =
-          !!preWarmed &&
-          preWarmed.isCurrentlyActive() &&
-          !preWarmed.hasEncounteredError() &&
-          preWarmAge < this.PRE_WARM_TTL_MS &&
-          mode === ItoMode.TRANSCRIBE &&
-          !hasDomainContext &&
-          !hasVocabulary
-
+          this.handleSonioxStreamError(error)
+        })
         console.log(
-          `[itoSessionManager] [SONIOX-PREWARM] preWarmExists=${!!preWarmed}` +
-            ` preWarmAge=${preWarmAge}ms` +
-            ` preWarmActive=${preWarmed?.isCurrentlyActive()}` +
-            ` preWarmErrored=${preWarmed?.hasEncounteredError()}` +
-            ` preWarmTTL=${this.PRE_WARM_TTL_MS}ms` +
-            ` mode=${mode}` +
-            ` hasDomainContext=${hasDomainContext}` +
-            ` hasVocabulary=${hasVocabulary}` +
-            ` → willReuse=${preWarmValid}`,
+          `[itoSessionManager] [SONIOX-CONNECT] Starting fresh Soniox connection | generation=${generation}`,
         )
-
-        if (preWarmValid) {
-          this.sonioxService = preWarmed!
-          this.sonioxService.on('error', (error: Error) => {
-            console.error(
-              `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (reused pre-warm session=${preWarmed?.getSessionId()}):`,
-              error.message,
-            )
-            this.handleSonioxStreamError(error)
-          })
-          console.log(
-            `[itoSessionManager] [SONIOX-PREWARM] Reusing pre-warmed connection | sessionId=${preWarmed?.getSessionId()} age=${preWarmAge}ms`,
-          )
-        } else {
-          if (preWarmed) {
-            console.log(
-              `[itoSessionManager] [SONIOX-PREWARM] Discarding stale pre-warm | sessionId=${preWarmed.getSessionId()} age=${preWarmAge}ms active=${preWarmed.isCurrentlyActive()} errored=${preWarmed.hasEncounteredError()}`,
-            )
-            preWarmed.cancel()
-          }
-
-          let sonioxContext: SonioxContextConfig | null = null
-          try {
-            sonioxContext = await Promise.race([
-              contextPromise,
-              new Promise<null>(resolve =>
-                setTimeout(() => resolve(null), 500),
-              ),
-            ])
-          } catch (error) {
-            console.warn(
-              '[itoSessionManager] Context gathering failed:',
-              error,
-            )
-          }
-
-          this.sonioxService = new SonioxStreamingService()
-          this.sonioxService.on('error', (error: Error) => {
-            console.error(
-              `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (fresh session=${this.sonioxService?.getSessionId()}):`,
-              error.message,
-            )
-            this.handleSonioxStreamError(error)
-          })
-          console.log(
-            `[itoSessionManager] [SONIOX-CONNECT] Starting fresh Soniox connection | generation=${generation}`,
-          )
-          await this.sonioxService.start(
-            tempKey,
-            this.getTranslationConfig(),
-            {
-              context: sonioxContext || undefined,
-            },
-          )
-        }
+        await this.sonioxService.start(
+          tempKey,
+          this.getTranslationConfig(),
+          {},
+        )
 
         if (generation !== this.sonioxSessionGeneration) {
           console.log(
@@ -326,8 +231,6 @@ export class ItoSessionManager {
 
       if (connected) {
         sonioxReady = true
-        this.sonioxPendingChunksCount = pendingChunks.length
-        this.sonioxPendingBytesAtFlush = pendingBytes
         console.log(
           `[itoSessionManager] [SONIOX-CONNECTED] Flushing ${pendingChunks.length} buffered chunks (${(pendingBytes / 1024).toFixed(1)}KB) | droppedChunks=${droppedChunks} | connectDelta=${Date.now() - this.sonioxSessionStartTime}ms`,
         )
@@ -362,22 +265,6 @@ export class ItoSessionManager {
 
     timingCollector.startInteraction()
     timingCollector.startTiming(TimingEventName.INTERACTION_ACTIVE)
-  }
-
-  private async gatherSonioxContext(
-    mode: ItoMode,
-  ): Promise<SonioxContextConfig | null> {
-    const context = await contextGrabber.gatherContext(mode)
-    this.sonioxContext = context
-
-    const userId = getCurrentUserId() || 'local-user'
-    const userDetails = await UserDetailsTable.findByUserId(userId)
-    const domainSlug = userDetails?.domain_context_slug || null
-
-    return domainContextProvider.buildSonioxContext(
-      domainSlug,
-      context.vocabularyWords,
-    )
   }
 
   private async gatherAndCacheContext(mode: ItoMode) {
@@ -595,45 +482,14 @@ export class ItoSessionManager {
 
     const diagnostics = service?.getDiagnostics()
     console.log(
-      `[itoSessionManager] [SONIOX-COMPLETE] ── START ──` +
-        ` | sessionAge=${sessionAge}ms` +
-        ` | mode=${mode}` +
-        ` | serviceExists=${!!service}` +
-        ` | serviceActive=${diagnostics?.isActive}` +
-        ` | serviceErrored=${diagnostics?.hasErrored}` +
-        ` | serviceSessionId=${diagnostics?.sessionId}` +
-        ` | connectTimeMs=${diagnostics?.connectTimeMs}` +
-        ` | firstTokenLatencyMs=${diagnostics?.firstTokenLatencyMs}` +
-        ` | serviceChunks=${diagnostics?.totalChunksSent}` +
-        ` | serviceBytes=${diagnostics ? (diagnostics.totalBytesSent / 1024).toFixed(1) : 'N/A'}KB` +
-        ` | serviceFinalTokens=${diagnostics?.finalTokensReceived}` +
-        ` | serviceAccumChars=${diagnostics?.accumTextLength}` +
-        ` | droppedAfterError=${diagnostics?.droppedChunksAfterError}` +
-        ` | pendingChunksAtStart=${this.sonioxPendingChunksCount}` +
-        ` | pendingBytesAtFlush=${(this.sonioxPendingBytesAtFlush / 1024).toFixed(1)}KB`,
+      `[itoSessionManager] [SONIOX-COMPLETE] ── START ── sessionAge=${sessionAge}ms | mode=${mode} | chunks=${diagnostics?.totalChunksSent ?? 0} | accumChars=${diagnostics?.accumTextLength ?? 0} | firstTokenMs=${diagnostics?.firstTokenLatencyMs ?? -1}`,
     )
 
     const hasCustomPrompt = this.sonioxContext?.tone?.promptTemplate?.trim()
 
     if (mode === ItoMode.TRANSCRIBE && !hasCustomPrompt) {
-      // [FINDING-2] Le path gRPC attend DRAIN_FLUSH_MS (80ms) avant d'envoyer le signal de fin
-      // pour laisser le pipeline audio vider ses derniers chunks. Ce path Soniox n'a PAS ce délai.
-      // Impact : les ~80 dernières ms d'audio peuvent ne pas être capturées avant stopRecording().
-      // Comparaison : gRPC → await new Promise(r => setTimeout(r, DRAIN_FLUSH_MS)) // 80ms
-      //               Soniox → rien ← ici
-      const drainGapStart = Date.now()
-      console.warn(
-        `[itoSessionManager] [FINDING-2-DRAIN] No drain wait before stopRecording() (gRPC has ${this.DRAIN_FLUSH_MS}ms drain) | sessionAge=${sessionAge}ms | If last words are truncated, this window is the cause`,
-      )
-      // FIX: Remove the audio handler BEFORE nulling this.sonioxService to prevent
-      // last audio chunks from being silently dropped into a defunct pendingChunks closure.
-      // Previously: sonioxService=null → stopRecording → off(handler) [RACE: chunks dropped]
-      // Now:        stopRecording → off(handler) → sonioxService=null [correct order]
+      await new Promise(resolve => setTimeout(resolve, this.DRAIN_FLUSH_MS))
       audioRecorderService.stopRecording()
-      const drainGapDuration = Date.now() - drainGapStart
-      console.log(
-        `[itoSessionManager] [FINDING-2-DRAIN] stopRecording() completed | elapsed since last audio possible=${drainGapDuration}ms | for reference gRPC drains ${this.DRAIN_FLUSH_MS}ms first`,
-      )
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
@@ -761,11 +617,10 @@ export class ItoSessionManager {
 
       allowAppNap()
       this.cleanupSonioxState()
-      this.preWarmSonioxConnection()
       return
     }
 
-    // FIX: Stop audio and remove handler BEFORE nulling sonioxService (same race condition fix as TRANSCRIBE path)
+    await new Promise(resolve => setTimeout(resolve, this.DRAIN_FLUSH_MS))
     await voiceInputService.stopAudioRecording()
 
     if (this.sonioxAudioHandler) {
@@ -1056,65 +911,6 @@ export class ItoSessionManager {
     this.contextGatherPromise = null
     contextGrabber.setCustomModePrompt(null)
     this.resolvedCustomMode = null
-  }
-
-  private preWarmSonioxConnection() {
-    if (this.preWarmedSonioxService) {
-      console.log(
-        `[itoSessionManager] [SONIOX-PREWARM] Pre-warm skipped — already have a pre-warmed service (sessionId=${this.preWarmedSonioxService.getSessionId()} age=${Date.now() - this.preWarmTimestamp}ms)`,
-      )
-      return
-    }
-    const warmStart = Date.now()
-    console.log('[itoSessionManager] [SONIOX-PREWARM] Starting pre-warm...')
-    sonioxTempKeyManager
-      .getKey()
-      .then(async tempKey => {
-        if (this.preWarmedSonioxService || this.sonioxSessionActive) {
-          console.log(
-            `[itoSessionManager] [SONIOX-PREWARM] Aborted after key fetch — preWarmedExists=${!!this.preWarmedSonioxService} sessionActive=${this.sonioxSessionActive}`,
-          )
-          return
-        }
-        const service = new SonioxStreamingService()
-        service.on('error', (error: Error) => {
-          console.error(
-            `[itoSessionManager] [SONIOX-PREWARM] Pre-warmed service errored (sessionId=${service.getSessionId()} age=${service.getSessionAgeMs()}ms): ${error.message}`,
-          )
-          if (this.preWarmedSonioxService === service) {
-            this.preWarmedSonioxService = null
-            this.preWarmTimestamp = 0
-          }
-        })
-        await service.start(tempKey)
-        if (this.sonioxSessionActive) {
-          console.log(
-            `[itoSessionManager] [SONIOX-PREWARM] Session became active during pre-warm connect — cancelling (sessionId=${service.getSessionId()})`,
-          )
-          service.cancel()
-          return
-        }
-        this.preWarmedSonioxService = service
-        this.preWarmTimestamp = Date.now()
-        console.log(
-          `[itoSessionManager] [SONIOX-PREWARM] Ready | sessionId=${service.getSessionId()} | totalTime=${Date.now() - warmStart}ms | TTL=${this.PRE_WARM_TTL_MS}ms`,
-        )
-        // [SONIOX-DOCS] KEEPALIVE MANQUANT : La doc Soniox recommande d'envoyer un keepalive
-        // toutes les 20 secondes pendant les silences. Le SDK expose session.pause() qui active
-        // les keepalives automatiques (défaut 5s) ET session.keepAlive() pour envoi manuel.
-        // Cette connexion pré-chaufée reste IDLE jusqu'à ${PRE_WARM_TTL_MS}ms SANS keepalive.
-        // Soniox ferme silencieusement les connexions inactives -> zombie.
-        // Fix à appliquer : service.pause() ici, service.resume() au moment de réutiliser.
-        console.warn(
-          `[itoSessionManager] [SONIOX-DOCS-KEEPALIVE] Pre-warm session ${service.getSessionId()} is now IDLE for up to ${this.PRE_WARM_TTL_MS / 1000}s with NO keepalive. SDK has session.pause() (auto-keepalive) and session.keepAlive() (manual). Soniox closes idle connections after ~20s. This IS the root cause of zombie connections.`,
-        )
-      })
-      .catch(error => {
-        console.warn(
-          '[itoSessionManager] [SONIOX-PREWARM] Failed:',
-          error,
-        )
-      })
   }
 
   private async handleTranscriptionResponse(result: {

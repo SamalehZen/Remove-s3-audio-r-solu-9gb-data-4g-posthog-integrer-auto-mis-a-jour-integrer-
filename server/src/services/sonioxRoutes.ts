@@ -57,12 +57,12 @@ export const registerSonioxRoutes = async (
         return
       }
 
-      const tempKey = await sonioxClient.createTemporaryKey(3600)
+      const tempKey = await sonioxClient.createTemporaryKey(120)
 
       reply.send({
         success: true,
         key: tempKey,
-        expires_in_seconds: 3600,
+        expires_in_seconds: 120,
       })
     } catch (error: any) {
       fastify.log.error({ err: error }, 'Failed to generate Soniox temp key')
