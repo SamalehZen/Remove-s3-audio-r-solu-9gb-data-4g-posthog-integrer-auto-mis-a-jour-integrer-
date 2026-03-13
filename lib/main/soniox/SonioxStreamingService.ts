@@ -34,7 +34,7 @@ export class SonioxStreamingService extends EventEmitter {
   private accumulatedText = ''
   private hasErrored = false
   private isTranslationMode = false
-  private static readonly FINISH_TIMEOUT_MS = 15000
+  private static readonly FINISH_TIMEOUT_MS = 5000
 
   // ── Diagnostic state ────────────────────────────────────────────────────────
   private sessionId = ''
@@ -166,9 +166,6 @@ export class SonioxStreamingService extends EventEmitter {
                   this.accumulatedText += token.text
                   this.finalTokensReceived++
                   this.lastFinalTokenTime = now
-                  console.log(
-                    `[SonioxStreaming:${this.sessionId}] Final token #${this.finalTokensReceived}: "${token.text.slice(0, 40)}" | accum: ${this.accumulatedText.length} chars | +${now - this.sessionStartTime}ms`,
-                  )
                 }
               }
             } else {
@@ -180,9 +177,6 @@ export class SonioxStreamingService extends EventEmitter {
                 this.accumulatedText += token.text
                 this.finalTokensReceived++
                 this.lastFinalTokenTime = now
-                console.log(
-                  `[SonioxStreaming:${this.sessionId}] Final token #${this.finalTokensReceived}: "${token.text.slice(0, 40)}" | accum: ${this.accumulatedText.length} chars | +${now - this.sessionStartTime}ms`,
-                )
               }
             }
           }
@@ -311,19 +305,15 @@ export class SonioxStreamingService extends EventEmitter {
       this.lastChunkSentTime = Date.now()
 
       // Log audio throughput every 50 chunks
-      if (this.totalChunksSent % 50 === 0) {
+      if (this.totalChunksSent % 200 === 0) {
         const elapsed = Date.now() - this.sessionStartTime
         const silenceSinceLastToken =
           this.lastFinalTokenTime > 0
             ? Date.now() - this.lastFinalTokenTime
             : -1
         const sessionMinutes = elapsed / 60_000
-        // [SONIOX-DOCS] Recommandation : redémarrer la session toutes les 15-20 min
-        const sessionAgeWarning = sessionMinutes >= 15
-          ? ` [⚠️ DOCS: session age ${sessionMinutes.toFixed(1)}min ≥ 15min recommended restart threshold]`
-          : ''
         console.log(
-          `[SonioxStreaming:${this.sessionId}] Audio stats: chunks=${this.totalChunksSent} bytes=${(this.totalBytesSent / 1024).toFixed(1)}KB sessionAge=${elapsed}ms finalTokens=${this.finalTokensReceived} accumChars=${this.accumulatedText.length} silenceSinceLastToken=${silenceSinceLastToken}ms${sessionAgeWarning}`,
+          `[SonioxStreaming:${this.sessionId}] Audio stats: chunks=${this.totalChunksSent} bytes=${(this.totalBytesSent / 1024).toFixed(1)}KB sessionAge=${elapsed}ms finalTokens=${this.finalTokensReceived} accumChars=${this.accumulatedText.length} silenceSinceLastToken=${silenceSinceLastToken}ms`,
         )
       }
     } catch (error) {
@@ -344,27 +334,11 @@ export class SonioxStreamingService extends EventEmitter {
   async stop(): Promise<string> {
     const stopCallTime = Date.now()
     const sessionAge = this.sessionStartTime > 0 ? stopCallTime - this.sessionStartTime : -1
-    const timeSinceLastChunk =
-      this.lastChunkSentTime > 0 ? stopCallTime - this.lastChunkSentTime : -1
-    const timeSinceLastToken =
-      this.lastFinalTokenTime > 0 ? stopCallTime - this.lastFinalTokenTime : -1
 
     // [SONIOX-DOCS] Log de l'état SDK natif de la session au moment du stop
     const sdkState = this.session?.state ?? 'null'
     console.log(
-      `[SonioxStreaming:${this.sessionId}] ── STOP called ──` +
-        ` | sessionAge=${sessionAge}ms` +
-        ` | sdkState=${sdkState}` +
-        ` | hasErrored=${this.hasErrored}` +
-        ` | isActive=${this.isActive}` +
-        ` | sessionNull=${!this.session}` +
-        ` | totalChunks=${this.totalChunksSent}` +
-        ` | totalBytes=${(this.totalBytesSent / 1024).toFixed(1)}KB` +
-        ` | totalTokens=${this.totalTokensReceived}` +
-        ` | finalTokens=${this.finalTokensReceived}` +
-        ` | accumChars=${this.accumulatedText.length}` +
-        ` | timeSinceLastChunk=${timeSinceLastChunk}ms` +
-        ` | timeSinceLastToken=${timeSinceLastToken}ms`,
+      `[SonioxStreaming:${this.sessionId}] ── STOP ── sessionAge=${sessionAge}ms | sdkState=${sdkState} | hasErrored=${this.hasErrored} | chunks=${this.totalChunksSent} | accumChars=${this.accumulatedText.length}`,
     )
 
     if (!this.session) {
@@ -384,29 +358,16 @@ export class SonioxStreamingService extends EventEmitter {
         // Without this, tokens held server-side waiting for an endpoint signal are lost on close().
         const sdkStateForFinalize = this.session.state ?? 'unknown'
         if (sdkStateForFinalize === 'connected') {
-          console.log(
-            `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] Calling finalize() before finish() | chunks=${this.totalChunksSent} | accumChars=${this.accumulatedText.length} | sdkState=${sdkStateForFinalize}`,
-          )
           try {
             this.session.finalize()
-            console.log(
-              `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] finalize() called — server will flush pending tokens before finish()`,
-            )
           } catch (finalizeErr: any) {
             console.warn(
-              `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] finalize() threw: ${finalizeErr?.message ?? finalizeErr} — proceeding with finish() anyway`,
+              `[SonioxStreaming:${this.sessionId}] finalize() threw: ${finalizeErr?.message ?? finalizeErr}`,
             )
           }
-        } else {
-          console.log(
-            `[SonioxStreaming:${this.sessionId}] [FIX-3-FINALIZE] Skipping finalize() | sdkState=${sdkStateForFinalize} (need 'connected') | chunks=${this.totalChunksSent}`,
-          )
         }
         let finishTimeoutId: ReturnType<typeof setTimeout> | null = null
         const finishStart = Date.now()
-        console.log(
-          `[SonioxStreaming:${this.sessionId}] Calling finish() — textBeforeStop=${textBeforeStop.length} chars, timeout=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms`,
-        )
         try {
           await Promise.race([
             this.session.finish(),
@@ -419,34 +380,22 @@ export class SonioxStreamingService extends EventEmitter {
           ])
           const finishDuration = Date.now() - finishStart
           console.log(
-            `[SonioxStreaming:${this.sessionId}] finish() COMPLETED in ${finishDuration}ms` +
-              ` | textAfterStop=${this.accumulatedText.length} chars` +
-              ` | newTokensFromFinalizeAndFinish=${this.accumulatedText.length - textBeforeStop.length} chars` +
-              ` | finalTokensTotal=${this.finalTokensReceived}`,
+            `[SonioxStreaming:${this.sessionId}] finish() OK in ${finishDuration}ms | gained=${this.accumulatedText.length - textBeforeStop.length} chars`,
           )
         } catch (err: any) {
           const finishDuration = Date.now() - finishStart
-          const charsGainedDuringStop = this.accumulatedText.length - textBeforeStop.length
           console.warn(
-            `[SonioxStreaming:${this.sessionId}] finish() TIMED OUT after ${finishDuration}ms (limit=${SonioxStreamingService.FINISH_TIMEOUT_MS}ms)` +
-              ` | charsBeforeStop=${textBeforeStop.length}` +
-              ` | charsGainedDuringStop=${charsGainedDuringStop}` +
-              ` | charsAtTimeout=${this.accumulatedText.length}` +
-              ` | ⚠️ tokens still server-side are LOST after close()` +
-              ` | error: ${err.message}`,
+            `[SonioxStreaming:${this.sessionId}] finish() timed out after ${finishDuration}ms | accumulated=${this.accumulatedText.length} chars`,
           )
         } finally {
           if (finishTimeoutId) clearTimeout(finishTimeoutId)
         }
       } else {
         console.warn(
-          `[SonioxStreaming:${this.sessionId}] Skipping finish() because hasErrored=true | accumText="${this.accumulatedText.slice(0, 80)}" (${this.accumulatedText.length} chars)`,
+          `[SonioxStreaming:${this.sessionId}] Skipping finish() — hasErrored=true`,
         )
       }
       this.session.close()
-      console.log(
-        `[SonioxStreaming:${this.sessionId}] session.close() called | finalText="${this.accumulatedText.slice(0, 80)}" (${this.accumulatedText.length} chars)`,
-      )
     } catch (error) {
       console.error(`[SonioxStreaming:${this.sessionId}] Error during stop():`, error)
     }
@@ -460,8 +409,7 @@ export class SonioxStreamingService extends EventEmitter {
     this.removeAllListeners()
 
     console.log(
-      `[SonioxStreaming:${this.sessionId}] ── STOP complete ──` +
-        ` | returnedText="${finalText.slice(0, 80)}" (${finalText.length} chars)`,
+      `[SonioxStreaming:${this.sessionId}] ── STOP complete ── ${finalText.length} chars`,
     )
 
     return finalText
