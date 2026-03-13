@@ -267,7 +267,7 @@ export class ItoSessionManager {
     timingCollector.startTiming(TimingEventName.INTERACTION_ACTIVE)
   }
 
- async gatherAndCacheContext(mode: ItoMode) {
+  private async gatherAndCacheContext(mode: ItoMode) {
     console.log('[itoSessionManager] Gathering context for Soniox mode...')
     const context = await contextGrabber.gatherContext(mode)
     this.sonioxContext = context
