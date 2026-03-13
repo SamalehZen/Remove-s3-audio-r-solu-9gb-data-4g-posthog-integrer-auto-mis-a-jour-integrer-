@@ -52,8 +52,6 @@ export class ItoSessionManager {
 
   // ── Diagnostic: session lifecycle tracking ─────────────────────────────────
   private sonioxSessionStartTime = 0
-  private sonioxPendingChunksCount = 0
-  private sonioxPendingBytesAtFlush = 0
   // ────────────────────────────────────────────────────────────────────────────
 
   public async startSession(mode: ItoMode) {
@@ -255,8 +253,6 @@ export class ItoSessionManager {
 
       if (connected) {
         sonioxReady = true
-        this.sonioxPendingChunksCount = pendingChunks.length
-        this.sonioxPendingBytesAtFlush = pendingBytes
         console.log(
           `[itoSessionManager] [SONIOX-CONNECTED] Flushing ${pendingChunks.length} buffered chunks (${(pendingBytes / 1024).toFixed(1)}KB) | droppedChunks=${droppedChunks} | connectDelta=${Date.now() - this.sonioxSessionStartTime}ms`,
         )

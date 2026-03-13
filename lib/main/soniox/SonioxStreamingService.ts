@@ -311,7 +311,6 @@ export class SonioxStreamingService extends EventEmitter {
           this.lastFinalTokenTime > 0
             ? Date.now() - this.lastFinalTokenTime
             : -1
-        const sessionMinutes = elapsed / 60_000
         console.log(
           `[SonioxStreaming:${this.sessionId}] Audio stats: chunks=${this.totalChunksSent} bytes=${(this.totalBytesSent / 1024).toFixed(1)}KB sessionAge=${elapsed}ms finalTokens=${this.finalTokensReceived} accumChars=${this.accumulatedText.length} silenceSinceLastToken=${silenceSinceLastToken}ms`,
         )
