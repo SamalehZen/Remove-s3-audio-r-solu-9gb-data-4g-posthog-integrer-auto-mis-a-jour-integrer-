@@ -13,7 +13,6 @@ import { timingCollector, TimingEventName } from './timing/TimingCollector'
 import {
   SonioxStreamingService,
   SonioxTranslationConfig,
-  type SonioxContextConfig,
 } from './soniox/SonioxStreamingService'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
 import { audioRecorderService } from '../media/audio'
@@ -24,8 +23,6 @@ import { DEFAULT_ADVANCED_SETTINGS } from '../constants/generated-defaults'
 import { customModeResolver } from './context/CustomModeResolver'
 import { activeWindowMonitor } from './ActiveWindowMonitor'
 import type { ResolvedCustomMode } from './context/CustomModeResolver'
-import { domainContextProvider } from './context/DomainContextProvider'
-import { UserDetailsTable } from './sqlite/userDetailsRepo'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
@@ -182,8 +179,6 @@ export class ItoSessionManager {
     recordingStateNotifier.notifyRecordingStarted(mode)
     preventAppNap()
 
-    const contextPromise = this.gatherSonioxContext(mode)
-
     let connectTimeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const connectWithTimeout = async () => {
@@ -194,21 +189,6 @@ export class ItoSessionManager {
             '[itoSessionManager] Soniox session was cancelled during key fetch, aborting',
           )
           return false
-        }
-
-        let sonioxContext: SonioxContextConfig | null = null
-        try {
-          sonioxContext = await Promise.race([
-            contextPromise,
-            new Promise<null>(resolve =>
-              setTimeout(() => resolve(null), 500),
-            ),
-          ])
-        } catch (error) {
-          console.warn(
-            '[itoSessionManager] Context gathering failed:',
-            error,
-          )
         }
 
         this.sonioxService = new SonioxStreamingService()
@@ -225,9 +205,7 @@ export class ItoSessionManager {
         await this.sonioxService.start(
           tempKey,
           this.getTranslationConfig(),
-          {
-            context: sonioxContext || undefined,
-          },
+          {},
         )
 
         if (generation !== this.sonioxSessionGeneration) {
@@ -289,23 +267,7 @@ export class ItoSessionManager {
     timingCollector.startTiming(TimingEventName.INTERACTION_ACTIVE)
   }
 
-  private async gatherSonioxContext(
-    mode: ItoMode,
-  ): Promise<SonioxContextConfig | null> {
-    const context = await contextGrabber.gatherContext(mode)
-    this.sonioxContext = context
-
-    const userId = getCurrentUserId() || 'local-user'
-    const userDetails = await UserDetailsTable.findByUserId(userId)
-    const domainSlug = userDetails?.domain_context_slug || null
-
-    return domainContextProvider.buildSonioxContext(
-      domainSlug,
-      context.vocabularyWords,
-    )
-  }
-
-  private async gatherAndCacheContext(mode: ItoMode) {
+ async gatherAndCacheContext(mode: ItoMode) {
     console.log('[itoSessionManager] Gathering context for Soniox mode...')
     const context = await contextGrabber.gatherContext(mode)
     this.sonioxContext = context

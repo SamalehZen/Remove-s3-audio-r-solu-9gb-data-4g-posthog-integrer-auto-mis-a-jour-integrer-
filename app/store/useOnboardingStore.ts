@@ -38,7 +38,6 @@ export const STEP_NAMES = {
   MICROPHONE_TEST: 'microphone_test',
   KEYBOARD_TEST: 'keyboard_test',
   GOOD_TO_GO: 'good_to_go',
-  DOMAIN_SELECTION: 'domain_selection',
   INTRODUCING_INTELLIGENT_MODE: 'introducing_intelligent_mode',
   ANY_APP: 'any_app',
   TRY_IT_OUT: 'try_it_out',
@@ -53,7 +52,6 @@ export const STEP_NAMES_ARRAY = [
   STEP_NAMES.MICROPHONE_TEST,
   STEP_NAMES.KEYBOARD_TEST,
   STEP_NAMES.GOOD_TO_GO,
-  STEP_NAMES.DOMAIN_SELECTION,
   STEP_NAMES.INTRODUCING_INTELLIGENT_MODE,
   STEP_NAMES.ANY_APP,
   STEP_NAMES.TRY_IT_OUT,
@@ -62,7 +60,7 @@ export const STEP_NAMES_ARRAY = [
 const getOnboardingCategory = (onboardingStep: number): OnboardingCategory => {
   if (onboardingStep < 3) return ONBOARDING_CATEGORIES.SIGN_UP
   if (onboardingStep < 4) return ONBOARDING_CATEGORIES.PERMISSIONS
-  if (onboardingStep < 8) return ONBOARDING_CATEGORIES.SET_UP
+  if (onboardingStep < 7) return ONBOARDING_CATEGORIES.SET_UP
   return ONBOARDING_CATEGORIES.TRY_IT
 }
 

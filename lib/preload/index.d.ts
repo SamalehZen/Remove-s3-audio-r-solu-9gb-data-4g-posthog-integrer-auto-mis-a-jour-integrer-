@@ -155,20 +155,6 @@ declare global {
           }>
         >
       }
-      domainContexts: {
-        list: () => Promise<
-          Array<{
-            slug: string
-            name: string
-            nameFr: string | null
-            icon: string
-            description: string | null
-            descriptionFr: string | null
-          }>
-        >
-        getUserDomain: () => Promise<string | null>
-        setUserDomain: (slug: string | null) => Promise<{ success: boolean }>
-      }
       loginItem: {
         setSettings: (enabled: boolean) => Promise<void>
         getSettings: () => Promise<Electron.LoginItemSettings>

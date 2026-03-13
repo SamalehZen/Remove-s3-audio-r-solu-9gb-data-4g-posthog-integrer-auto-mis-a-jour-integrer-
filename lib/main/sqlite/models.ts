@@ -64,7 +64,6 @@ export interface UserDetails {
   business_address: string | null
   website: string | null
   linkedin: string | null
-  domain_context_slug: string | null
   created_at: string
   updated_at: string
 }

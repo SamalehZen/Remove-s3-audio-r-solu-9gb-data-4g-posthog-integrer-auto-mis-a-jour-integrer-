@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useUserDetailsStore } from '../../../../store/useUserDetailsStore'
 import { Button } from '../../../ui/button'
-import { DomainSelector } from '../../../ui/domain-selector'
 
 export default function MyDetailsSettingsContent() {
   const {
@@ -32,19 +31,9 @@ export default function MyDetailsSettingsContent() {
     occupation?: string
   }>({})
   const [showSaved, setShowSaved] = useState(false)
-  const [domainSlug, setDomainSlug] = useState<string | null>(null)
-  const [initialDomainSlug, setInitialDomainSlug] = useState<string | null>(null)
-  const domainDirty = domainSlug !== initialDomainSlug
 
   useEffect(() => {
     loadDetails()
-  }, [])
-
-  useEffect(() => {
-    window.api.domainContexts.getUserDomain().then(slug => {
-      setDomainSlug(slug)
-      setInitialDomainSlug(slug)
-    })
   }, [])
 
   const handleSave = async () => {
@@ -59,11 +48,6 @@ export default function MyDetailsSettingsContent() {
       setErrors({})
       const success = await saveDetails()
       if (!success) return
-    }
-
-    if (domainDirty) {
-      await window.api.domainContexts.setUserDomain(domainSlug)
-      setInitialDomainSlug(domainSlug)
     }
 
     setShowSaved(true)
@@ -189,23 +173,6 @@ export default function MyDetailsSettingsContent() {
 
         <div className="border-t border-[var(--border)]" />
 
-        {/* Section: Speech Domain */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-[var(--color-subtext)] uppercase tracking-wider">
-            Speech Domain
-          </h3>
-          <p className="text-sm text-[var(--color-subtext)]">
-            Select your primary domain to optimize transcription accuracy with
-            domain-specific vocabulary.
-          </p>
-          <DomainSelector
-            selectedSlug={domainSlug}
-            onSelect={(slug) => setDomainSlug(slug)}
-          />
-        </div>
-
-        <div className="border-t border-[var(--border)]" />
-
         {/* Section 2: Contact Information */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-[var(--color-subtext)] uppercase tracking-wider">
@@ -306,7 +273,7 @@ export default function MyDetailsSettingsContent() {
 
         {/* Save button */}
         <div className="flex items-center gap-3">
-          <Button onClick={handleSave} disabled={(!isDirty && !domainDirty) || isSaving}>
+          <Button onClick={handleSave} disabled={!isDirty || isSaving}>
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
           {showSaved && (

@@ -85,10 +85,7 @@ module.exports = {
     extraResources: [
       ...getMacResources(),
       { from: 'resources/build/ito-logo.png', to: 'build/ito-logo.png' },
-      { from: 'resources/domain-contexts', to: 'domain-contexts', filter: ['**/*.json'] },
-    ],
-  },
-  dmg: {
+    ],: {
     artifactName:
       stage === 'prod'
         ? 'Ito-Installer.${ext}'
@@ -112,7 +109,6 @@ module.exports = {
     extraResources: [
       ...getWindowsResources(),
       { from: 'resources/build/ito-logo.png', to: 'build/ito-logo.png' },
-      { from: 'resources/domain-contexts', to: 'domain-contexts', filter: ['**/*.json'] },
     ],
     forceCodeSigning: false,
     asarUnpack: [

@@ -113,12 +113,6 @@ app.whenReady().then(async () => {
   // Initialize logging after DB + store so batched log persistence can write
   initializeLogging()
 
-  // Initialize domain context provider (loads JSON files into SQLite + memory)
-  const { domainContextProvider } = await import(
-    './context/DomainContextProvider'
-  )
-  await domainContextProvider.initialize()
-
   // Validate stored tokens before using them (will attempt refresh if needed)
   const tokensAreValid = await validateStoredTokens()
 
