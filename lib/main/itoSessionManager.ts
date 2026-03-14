@@ -11,9 +11,9 @@ import log from 'electron-log'
 import { preventAppNap, allowAppNap } from './appNap'
 import { timingCollector, TimingEventName } from './timing/TimingCollector'
 import {
-  SonioxStreamingService,
-  SonioxTranslationConfig,
-} from './soniox/SonioxStreamingService'
+  SonioxPersistentSession,
+  type SonioxTranslationConfig,
+} from './soniox/SonioxPersistentSession'
 import { sonioxTempKeyManager } from './soniox/SonioxTempKeyManager'
 import { audioRecorderService } from '../media/audio'
 import { unmuteSystemAudio } from '../media/systemAudio'
@@ -26,7 +26,6 @@ import type { ResolvedCustomMode } from './context/CustomModeResolver'
 
 export class ItoSessionManager {
   private readonly MINIMUM_AUDIO_DURATION_MS = 100
-  private readonly SONIOX_CONNECT_TIMEOUT_MS = 5_000
   private readonly SONIOX_MAX_PENDING_BYTES = 512 * 1024
 
   private textInserter = new TextInserter()
@@ -37,19 +36,13 @@ export class ItoSessionManager {
   }> | null = null
   private grammarRulesService = new GrammarRulesService('')
 
-  private sonioxService: SonioxStreamingService | null = null
+  private sonioxPersistentSession: SonioxPersistentSession | null = null
   private isSonioxMode = false
   private currentMode: ItoMode = ItoMode.TRANSCRIBE
   private sonioxAudioHandler: ((chunk: Buffer) => void) | null = null
   private sonioxContext: ContextData | null = null
-  private sonioxSessionGeneration = 0
-  private sonioxSessionActive = false
   private contextGatherPromise: Promise<void> | null = null
   private resolvedCustomMode: ResolvedCustomMode | null = null
-
-  // ── Diagnostic: session lifecycle tracking ─────────────────────────────────
-  private sonioxSessionStartTime = 0
-  // ────────────────────────────────────────────────────────────────────────────
 
   public async startSession(mode: ItoMode) {
     console.log('[itoSessionManager] Starting session with mode:', mode)
@@ -145,13 +138,31 @@ export class ItoSessionManager {
 
   private async startSonioxSession(mode: ItoMode) {
     this.isSonioxMode = true
-    this.sonioxSessionActive = true
-    const generation = ++this.sonioxSessionGeneration
-    this.sonioxSessionStartTime = Date.now()
+    this.currentMode = mode
 
     console.log(
-      `[itoSessionManager] [SONIOX-START] generation=${generation} mode=${mode} sessionActive=true`,
+      `[itoSessionManager] [SONIOX-START] mode=${mode}`,
     )
+
+    if (!this.sonioxPersistentSession) {
+      this.sonioxPersistentSession = new SonioxPersistentSession({
+        idleTimeoutMs: 120_000,
+        maxSessionAgeMs: 240 * 60 * 1000,
+      })
+
+      this.sonioxPersistentSession.on('error', (error: Error) => {
+        console.error(
+          `[itoSessionManager] [SONIOX-PERSISTENT-ERROR] ${error.message}`,
+        )
+        this.handleSonioxStreamError(error)
+      })
+
+      this.sonioxPersistentSession.on('auto-closed', (reason) => {
+        console.log(
+          `[itoSessionManager] [SONIOX-AUTO-CLOSED] reason=${reason}`,
+        )
+      })
+    }
 
     const pendingChunks: Buffer[] = []
     let pendingBytes = 0
@@ -159,8 +170,8 @@ export class ItoSessionManager {
     let droppedChunks = 0
 
     this.sonioxAudioHandler = (chunk: Buffer) => {
-      if (sonioxReady && this.sonioxService) {
-        this.sonioxService.sendAudio(chunk)
+      if (sonioxReady && this.sonioxPersistentSession) {
+        this.sonioxPersistentSession.sendAudio(chunk)
       } else if (pendingBytes < this.SONIOX_MAX_PENDING_BYTES) {
         pendingChunks.push(chunk)
         pendingBytes += chunk.length
@@ -179,80 +190,39 @@ export class ItoSessionManager {
     recordingStateNotifier.notifyRecordingStarted(mode)
     preventAppNap()
 
-    let connectTimeoutId: ReturnType<typeof setTimeout> | null = null
     try {
-      const connectWithTimeout = async () => {
-        const tempKey = await sonioxTempKeyManager.getKey()
+      const tempKey = await sonioxTempKeyManager.getKey()
+      await this.sonioxPersistentSession.ensureReady(
+        tempKey,
+        this.getTranslationConfig(),
+        {},
+      )
 
-        if (generation !== this.sonioxSessionGeneration) {
-          console.log(
-            '[itoSessionManager] Soniox session was cancelled during key fetch, aborting',
-          )
-          return false
-        }
+      this.sonioxPersistentSession.startStreaming()
+      sonioxReady = true
 
-        this.sonioxService = new SonioxStreamingService()
-        this.sonioxService.on('error', (error: Error) => {
-          console.error(
-            `[itoSessionManager] [SONIOX-ERROR] Soniox streaming error (session=${this.sonioxService?.getSessionId()}):`,
-            error.message,
-          )
-          this.handleSonioxStreamError(error)
-        })
-        console.log(
-          `[itoSessionManager] [SONIOX-CONNECT] Starting fresh Soniox connection | generation=${generation}`,
-        )
-        await this.sonioxService.start(
-          tempKey,
-          this.getTranslationConfig(),
-          {},
-        )
-
-        if (generation !== this.sonioxSessionGeneration) {
-          console.log(
-            '[itoSessionManager] Soniox session was cancelled during connect, cleaning up',
-          )
-          this.sonioxService.cancel()
-          this.sonioxService = null
-          return false
-        }
-
-        return true
+      console.log(
+        `[itoSessionManager] [SONIOX-CONNECTED] Flushing ${pendingChunks.length} buffered chunks (${(pendingBytes / 1024).toFixed(1)}KB)`,
+      )
+      for (const chunk of pendingChunks) {
+        this.sonioxPersistentSession.sendAudio(chunk)
       }
-
-      const timeout = new Promise<never>((_, reject) => {
-        connectTimeoutId = setTimeout(
-          () => reject(new Error('Soniox connection timed out')),
-          this.SONIOX_CONNECT_TIMEOUT_MS,
-        )
-      })
-
-      const connected = await Promise.race([connectWithTimeout(), timeout])
-
-      if (connected) {
-        sonioxReady = true
-        console.log(
-          `[itoSessionManager] [SONIOX-CONNECTED] Flushing ${pendingChunks.length} buffered chunks (${(pendingBytes / 1024).toFixed(1)}KB) | droppedChunks=${droppedChunks} | connectDelta=${Date.now() - this.sonioxSessionStartTime}ms`,
-        )
-        for (const chunk of pendingChunks) {
-          this.sonioxService!.sendAudio(chunk)
-        }
-        pendingChunks.length = 0
-      }
+      pendingChunks.length = 0
     } catch (error) {
       if (this.currentMode === ItoMode.TRANSLATE) {
         console.error(
           '[itoSessionManager] Translation mode requires Soniox. Ensure Soniox API key is configured on the server.',
         )
       }
-      log.error('[itoSessionManager] Failed to start Soniox session:', error)
+      console.error('[itoSessionManager] Failed to start Soniox persistent session:', error)
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
       }
-      this.sonioxService = null
-    } finally {
-      if (connectTimeoutId) clearTimeout(connectTimeoutId)
+      voiceInputService.stopAudioRecording().catch(() => {})
+      recordingStateNotifier.notifyRecordingStopped()
+      allowAppNap()
+      return
     }
 
     this.contextGatherPromise = this.gatherAndCacheContext(mode)
@@ -337,11 +307,9 @@ export class ItoSessionManager {
     this.resolvedCustomMode = null
 
     if (this.isSonioxMode) {
-      this.sonioxSessionActive = false
-      this.sonioxSessionGeneration++
-
-      this.sonioxService?.cancel()
-      this.sonioxService = null
+      if (this.sonioxPersistentSession?.getState() === 'streaming') {
+        this.sonioxPersistentSession.stopStreaming().catch(() => {})
+      }
       if (this.sonioxAudioHandler) {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
@@ -464,25 +432,19 @@ export class ItoSessionManager {
   }
 
   private async completeSonioxSession() {
-    const completeCallTime = Date.now()
-    const sessionAge = this.sonioxSessionStartTime > 0 ? completeCallTime - this.sonioxSessionStartTime : -1
-
-    if (!this.sonioxSessionActive) {
+    if (!this.sonioxPersistentSession || this.sonioxPersistentSession.getState() !== 'streaming') {
       console.warn(
-        `[itoSessionManager] [SONIOX-COMPLETE] completeSonioxSession called but no active session, skipping | sessionAge=${sessionAge}ms`,
+        `[itoSessionManager] [SONIOX-COMPLETE] completeSonioxSession called but not streaming, skipping`,
       )
       return
     }
-    this.sonioxSessionActive = false
 
     timingCollector.endTiming(TimingEventName.INTERACTION_ACTIVE)
 
     const mode = this.currentMode
-    const service = this.sonioxService
 
-    const diagnostics = service?.getDiagnostics()
     console.log(
-      `[itoSessionManager] [SONIOX-COMPLETE] ── START ── sessionAge=${sessionAge}ms | mode=${mode} | chunks=${diagnostics?.totalChunksSent ?? 0} | accumChars=${diagnostics?.accumTextLength ?? 0} | firstTokenMs=${diagnostics?.firstTokenLatencyMs ?? -1}`,
+      `[itoSessionManager] [SONIOX-COMPLETE] ── START ── mode=${mode}`,
     )
 
     const hasCustomPrompt = this.sonioxContext?.tone?.promptTemplate?.trim()
@@ -494,10 +456,9 @@ export class ItoSessionManager {
         audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
         this.sonioxAudioHandler = null
         console.log(
-          `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed after stopRecording | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+          `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed after stopRecording`,
         )
       }
-      this.sonioxService = null
       if (store.get(STORE_KEYS.SETTINGS)?.muteAudioWhenDictating) {
         unmuteSystemAudio()
       }
@@ -506,34 +467,28 @@ export class ItoSessionManager {
       recordingStateNotifier.notifyRecordingStopped()
 
       let rawTranscript = ''
-      if (service) {
-        const stopStart = Date.now()
+      if (this.sonioxPersistentSession) {
         try {
-          rawTranscript = await service.stop()
-          const stopDuration = Date.now() - stopStart
+          const utteranceResult = await this.sonioxPersistentSession.stopStreaming()
+          rawTranscript = utteranceResult.text.trim()
           console.log(
-            `[itoSessionManager] [SONIOX-COMPLETE] service.stop() returned in ${stopDuration}ms | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+            `[itoSessionManager] [SONIOX-COMPLETE] stopStreaming() returned | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
           )
         } catch (error) {
-          const stopDuration = Date.now() - stopStart
           console.error(
-            `[itoSessionManager] [SONIOX-COMPLETE] service.stop() threw after ${stopDuration}ms:`,
+            `[itoSessionManager] [SONIOX-COMPLETE] stopStreaming() threw:`,
             error,
-          )
-          rawTranscript = service.getAccumulatedText() || ''
-          console.log(
-            `[itoSessionManager] [SONIOX-COMPLETE] Using fallback accumulatedText: "${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
           )
         }
       } else {
         console.warn(
-          `[itoSessionManager] [SONIOX-COMPLETE] service is null — no transcript available (was it cancelled or errored before stop?)`,
+          `[itoSessionManager] [SONIOX-COMPLETE] persistent session is null — no transcript available`,
         )
       }
 
       if (!rawTranscript || rawTranscript.trim().length === 0) {
         console.warn(
-          `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (empty transcript) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+          `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (empty transcript)`,
         )
         recordingStateNotifier.notifyProcessingStopped()
         allowAppNap()
@@ -627,41 +582,36 @@ export class ItoSessionManager {
       audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
       this.sonioxAudioHandler = null
       console.log(
-        `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed (non-TRANSCRIBE path) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+        `[itoSessionManager] [SONIOX-COMPLETE] Audio handler removed (non-TRANSCRIBE path)`,
       )
     }
-    this.sonioxService = null
 
     recordingStateNotifier.notifyProcessingStarted()
     recordingStateNotifier.notifyRecordingStopped()
 
     let rawTranscript = ''
-    if (service) {
-      const stopStart = Date.now()
+    if (this.sonioxPersistentSession) {
       try {
-        rawTranscript = await service.stop()
+        const utteranceResult = await this.sonioxPersistentSession.stopStreaming()
+        rawTranscript = utteranceResult.text.trim()
         console.log(
-          `[itoSessionManager] [SONIOX-COMPLETE] service.stop() returned in ${Date.now() - stopStart}ms | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
+          `[itoSessionManager] [SONIOX-COMPLETE] stopStreaming() returned | rawTranscript="${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
         )
       } catch (error) {
         console.error(
-          `[itoSessionManager] [SONIOX-COMPLETE] service.stop() threw after ${Date.now() - stopStart}ms:`,
+          `[itoSessionManager] [SONIOX-COMPLETE] stopStreaming() threw:`,
           error,
-        )
-        rawTranscript = service.getAccumulatedText() || ''
-        console.log(
-          `[itoSessionManager] [SONIOX-COMPLETE] Using fallback accumulatedText: "${rawTranscript.slice(0, 80)}" (${rawTranscript.length} chars)`,
         )
       }
     } else {
       console.warn(
-        `[itoSessionManager] [SONIOX-COMPLETE] service is null on non-TRANSCRIBE path`,
+        `[itoSessionManager] [SONIOX-COMPLETE] persistent session is null on non-TRANSCRIBE path`,
       )
     }
 
     if (!rawTranscript || rawTranscript.trim().length === 0) {
       console.warn(
-        `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (non-TRANSCRIBE path) | sessionAge=${Date.now() - this.sonioxSessionStartTime}ms`,
+        `[itoSessionManager] [SONIOX-COMPLETE] No speech detected (non-TRANSCRIBE path)`,
       )
       recordingStateNotifier.notifyProcessingStopped()
       allowAppNap()
@@ -977,28 +927,14 @@ export class ItoSessionManager {
   }
 
   private handleSonioxStreamError(error: Error) {
-    const sessionAge = this.sonioxSessionStartTime > 0 ? Date.now() - this.sonioxSessionStartTime : -1
-    if (!this.sonioxSessionActive) {
-      console.warn(
-        `[itoSessionManager] [SONIOX-ERROR] Stream error after session ended (sessionAge=${sessionAge}ms), ignoring: ${error.message}`,
-      )
-      return
-    }
-
     console.error(
-      `[itoSessionManager] [SONIOX-ERROR] Stream error during active session (sessionAge=${sessionAge}ms) — cleaning up: ${error.message}`,
+      `[itoSessionManager] [SONIOX-ERROR] Stream error — cleaning up: ${error.message}`,
     )
-
-    this.sonioxSessionActive = false
-    this.sonioxSessionGeneration++
 
     if (this.sonioxAudioHandler) {
       audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
       this.sonioxAudioHandler = null
     }
-
-    this.sonioxService?.cancel()
-    this.sonioxService = null
 
     voiceInputService.stopAudioRecording().catch(e => {
       console.error(
@@ -1008,6 +944,7 @@ export class ItoSessionManager {
     })
 
     recordingStateNotifier.notifyRecordingStopped()
+    recordingStateNotifier.notifyProcessingStopped()
     timingCollector.clearInteraction()
     interactionManager.clearCurrentInteraction()
     allowAppNap()

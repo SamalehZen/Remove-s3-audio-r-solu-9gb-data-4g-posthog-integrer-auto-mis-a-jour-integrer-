@@ -45,7 +45,7 @@ function isSonioxError(error: Error): boolean {
   const hasSonioxStack =
     stack.includes('@soniox/node') ||
     stack.includes('@soniox\\node') ||
-    stack.includes('SonioxStreaming')
+    stack.includes('SonioxPersistent')
   return (
     msg.includes('Audio data decode timeout') ||
     (msg.includes('NetworkError') && hasSonioxStack) ||
