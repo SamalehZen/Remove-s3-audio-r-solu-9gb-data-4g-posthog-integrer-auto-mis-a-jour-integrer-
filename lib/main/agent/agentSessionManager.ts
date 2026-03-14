@@ -10,7 +10,7 @@ import { audioRecorderService } from '../../media/audio'
 import { customModeResolver } from '../context/CustomModeResolver'
 import { activeWindowMonitor } from '../ActiveWindowMonitor'
 import { contextGrabber } from '../context/ContextGrabber'
-import { SonioxStreamingService } from '../soniox/SonioxStreamingService'
+import { SonioxPersistentSession } from '../soniox/SonioxPersistentSession'
 import { sonioxTempKeyManager } from '../soniox/SonioxTempKeyManager'
 import { setFocusedText } from '../../media/text-writer'
 import { Agent } from './agent'
@@ -26,7 +26,7 @@ class AgentSessionManager {
     sampleRate: number
   }> | null = null
   private isSonioxMode = false
-  private sonioxService: SonioxStreamingService | null = null
+  private sonioxPersistentSession: SonioxPersistentSession | null = null
   private sonioxAudioHandler: ((chunk: Buffer) => void) | null = null
 
   private agent: Agent | null = null
@@ -163,9 +163,20 @@ class AgentSessionManager {
     this.isSonioxMode = true
     console.info('[AgentSession] Starting Soniox agent session...')
 
+    if (!this.sonioxPersistentSession) {
+      this.sonioxPersistentSession = new SonioxPersistentSession({
+        idleTimeoutMs: 120_000,
+        maxSessionAgeMs: 240 * 60 * 1000,
+      })
+      this.sonioxPersistentSession.on('error', (error: Error) => {
+        console.error(`[AgentSession] [SONIOX-ERROR] ${error.message}`)
+        this.cleanupSoniox()
+      })
+    }
+
     this.sonioxAudioHandler = (chunk: Buffer) => {
-      if (this.sonioxService) {
-        this.sonioxService.sendAudio(chunk)
+      if (this.sonioxPersistentSession) {
+        this.sonioxPersistentSession.sendAudio(chunk)
       }
     }
     audioRecorderService.on('audio-chunk', this.sonioxAudioHandler)
@@ -178,8 +189,8 @@ class AgentSessionManager {
       console.info('[AgentSession] Requesting Soniox temp key...')
       const tempKey = await sonioxTempKeyManager.getKey()
       console.info('[AgentSession] Soniox temp key obtained, connecting...')
-      this.sonioxService = new SonioxStreamingService()
-      await this.sonioxService.start(tempKey, undefined)
+      await this.sonioxPersistentSession.ensureReady(tempKey)
+      this.sonioxPersistentSession.startStreaming()
       console.info('[AgentSession] Soniox connected and recording')
     } catch (error) {
       console.error('[AgentSession] Soniox connect failed:', error)
@@ -282,22 +293,18 @@ class AgentSessionManager {
     recordingStateNotifier.notifyProcessingStarted(true)
     recordingStateNotifier.notifyRecordingStopped()
 
-    const service = this.sonioxService
-    this.sonioxService = null
-
     let rawTranscript = ''
-    if (service) {
+    if (this.sonioxPersistentSession) {
       try {
-        console.info('[AgentSession] Stopping Soniox service...')
-        rawTranscript = await service.stop()
+        console.info('[AgentSession] Stopping Soniox streaming...')
+        const result = await this.sonioxPersistentSession.stopStreaming()
+        rawTranscript = result.text
         console.info(`[AgentSession] Soniox transcript: "${rawTranscript.slice(0, 100)}" (${rawTranscript.length} chars)`)
       } catch (error) {
-        console.error('[AgentSession] Soniox stop error:', error)
-        rawTranscript = service.getAccumulatedText() || ''
-        console.info(`[AgentSession] Soniox fallback text: "${rawTranscript.slice(0, 100)}" (${rawTranscript.length} chars)`)
+        console.error('[AgentSession] Soniox stopStreaming error:', error)
       }
     } else {
-      console.warn('[AgentSession] No Soniox service to stop')
+      console.warn('[AgentSession] No Soniox persistent session to stop')
     }
 
     if (!rawTranscript || rawTranscript.trim().length < 2) {
@@ -463,6 +470,8 @@ class AgentSessionManager {
 
   public async cleanup() {
     console.info('[AgentSession] ══════ FULL CLEANUP ══════')
+    this.sonioxPersistentSession?.close()
+    this.sonioxPersistentSession = null
     this.agent?.clearHistory()
     this.uiMessages = []
     this.agent = null
@@ -485,9 +494,8 @@ class AgentSessionManager {
       audioRecorderService.off('audio-chunk', this.sonioxAudioHandler)
       this.sonioxAudioHandler = null
     }
-    if (this.sonioxService) {
-      this.sonioxService.cancel()
-      this.sonioxService = null
+    if (this.sonioxPersistentSession?.getState() === 'streaming') {
+      this.sonioxPersistentSession.stopStreaming().catch(() => {})
     }
   }
 }

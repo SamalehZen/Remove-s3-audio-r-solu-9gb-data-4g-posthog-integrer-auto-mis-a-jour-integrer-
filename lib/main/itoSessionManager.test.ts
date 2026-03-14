@@ -102,6 +102,7 @@ const mockContextGrabber = {
     }),
   ),
   getCursorContextForGrammar: mock(() => Promise.resolve('test context')),
+  setCustomModePrompt: mock(),
 }
 mock.module('./context/ContextGrabber', () => ({
   contextGrabber: mockContextGrabber,
@@ -123,6 +124,10 @@ const mockGetAdvancedSettings = mock(() => ({
 }))
 mock.module('./store', () => ({
   getAdvancedSettings: mockGetAdvancedSettings,
+  getCurrentUserId: mock(() => 'test-user-id'),
+  store: {
+    get: mock(() => ({})),
+  },
 }))
 
 mock.module('electron-log', () => ({
@@ -142,30 +147,53 @@ mock.module('./soniox/SonioxTempKeyManager', () => ({
   sonioxTempKeyManager: mockSonioxTempKeyManager,
 }))
 
-const mockSonioxStreamingService = {
-  start: mock(() => Promise.resolve()),
-  stop: mock(() => Promise.resolve('transcribed text from soniox')),
-  cancel: mock(),
+const mockSonioxPersistentSession = {
+  ensureReady: mock(() => Promise.resolve()),
+  startStreaming: mock(),
+  stopStreaming: mock(() => Promise.resolve({ text: 'raw soniox text', durationMs: 500, tokenCount: 10 })),
   sendAudio: mock(),
+  close: mock(),
+  getState: mock(() => 'paused'),
+  getDiagnostics: mock(() => ({})),
   on: mock(),
   off: mock(),
   removeAllListeners: mock(),
+  emit: mock(),
 }
-mock.module('./soniox/SonioxStreamingService', () => ({
-  SonioxStreamingService: class MockSonioxStreamingService {
-    start = mockSonioxStreamingService.start
-    stop = mockSonioxStreamingService.stop
-    cancel = mockSonioxStreamingService.cancel
-    sendAudio = mockSonioxStreamingService.sendAudio
-    on = mockSonioxStreamingService.on
-    off = mockSonioxStreamingService.off
-    removeAllListeners = mockSonioxStreamingService.removeAllListeners
+mock.module('./soniox/SonioxPersistentSession', () => ({
+  SonioxPersistentSession: class MockSonioxPersistentSession {
+    ensureReady = mockSonioxPersistentSession.ensureReady
+    startStreaming = mockSonioxPersistentSession.startStreaming
+    stopStreaming = mockSonioxPersistentSession.stopStreaming
+    sendAudio = mockSonioxPersistentSession.sendAudio
+    close = mockSonioxPersistentSession.close
+    getState = mockSonioxPersistentSession.getState
+    getDiagnostics = mockSonioxPersistentSession.getDiagnostics
+    on = mockSonioxPersistentSession.on
+    off = mockSonioxPersistentSession.off
+    removeAllListeners = mockSonioxPersistentSession.removeAllListeners
+    emit = mockSonioxPersistentSession.emit
   },
+}))
+
+const mockCustomModeResolver = {
+  resolve: mock(() => Promise.resolve(null)),
+}
+mock.module('./context/CustomModeResolver', () => ({
+  customModeResolver: mockCustomModeResolver,
+}))
+
+const mockActiveWindowMonitor = {
+  getCachedState: mock(() => null),
+}
+mock.module('./ActiveWindowMonitor', () => ({
+  activeWindowMonitor: mockActiveWindowMonitor,
 }))
 
 const mockAudioRecorderService = {
   on: mock(),
   off: mock(),
+  stopRecording: mock(),
 }
 mock.module('../media/audio', () => ({
   audioRecorderService: mockAudioRecorderService,
@@ -201,7 +229,7 @@ describe('itoSessionManager', () => {
     Object.values(mockSonioxTempKeyManager).forEach(mockFn =>
       mockFn.mockClear(),
     )
-    Object.values(mockSonioxStreamingService).forEach(mockFn =>
+    Object.values(mockSonioxPersistentSession).forEach(mockFn =>
       mockFn.mockClear(),
     )
     Object.values(mockAudioRecorderService).forEach(mockFn =>
@@ -227,8 +255,8 @@ describe('itoSessionManager', () => {
     })
 
     mockSonioxTempKeyManager.getKey.mockResolvedValue('test-soniox-key')
-    mockSonioxStreamingService.start.mockResolvedValue(undefined)
-    mockSonioxStreamingService.stop.mockResolvedValue('raw soniox text')
+    mockSonioxPersistentSession.ensureReady.mockResolvedValue(undefined)
+    mockSonioxPersistentSession.stopStreaming.mockResolvedValue({ text: 'raw soniox text', durationMs: 500, tokenCount: 10 })
     mockItoHttpClient.post.mockResolvedValue({
       success: true,
       transcript: 'adjusted transcript',
@@ -534,7 +562,8 @@ describe('itoSessionManager', () => {
       })
 
       mockSonioxTempKeyManager.getKey.mockResolvedValue('test-key')
-      mockSonioxStreamingService.stop.mockResolvedValue('raw soniox text')
+      mockSonioxPersistentSession.stopStreaming.mockResolvedValue({ text: 'raw soniox text', durationMs: 500, tokenCount: 10 })
+      mockSonioxPersistentSession.getState.mockReturnValue('streaming')
       mockItoHttpClient.post.mockResolvedValue({
         success: true,
         transcript: 'adjusted text',
@@ -571,7 +600,7 @@ describe('itoSessionManager', () => {
       await startPromise
     })
 
-    test('should complete session with LLM adjustment in TRANSCRIBE mode', async () => {
+    test('should complete session with direct text insertion in TRANSCRIBE mode', async () => {
       const { ItoSessionManager } = await import('./itoSessionManager')
       const session = new ItoSessionManager()
 
@@ -579,15 +608,7 @@ describe('itoSessionManager', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       await session.completeSession()
 
-      expect(mockItoHttpClient.post).toHaveBeenCalledWith(
-        '/adjust-transcript',
-        expect.objectContaining({
-          transcript: 'raw soniox text',
-          mode: 'transcribe',
-        }),
-        { requireAuth: true },
-      )
-      expect(mockTextInserter.insertText).toHaveBeenCalledWith('adjusted text')
+      expect(mockTextInserter.insertText).toHaveBeenCalledWith('raw soniox text')
       expect(
         mockRecordingStateNotifier.notifyProcessingStarted,
       ).toHaveBeenCalled()
@@ -653,12 +674,9 @@ describe('itoSessionManager', () => {
         mockRecordingStateNotifier.notifyRecordingStopped,
       ).toHaveBeenCalled()
 
-      // Resolve key — should be a no-op due to generation mismatch
+      // Resolve key — persistent session will connect but cancel already ran
       resolveKey!('test-key')
       await startPromise
-
-      // SonioxStreamingService.start should NOT have been called
-      expect(mockSonioxStreamingService.start).not.toHaveBeenCalled()
     })
 
     test('should not register streaming text listener during recording', async () => {
@@ -669,7 +687,7 @@ describe('itoSessionManager', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       await session.completeSession()
 
-      expect(mockSonioxStreamingService.on).not.toHaveBeenCalledWith(
+      expect(mockSonioxPersistentSession.on).not.toHaveBeenCalledWith(
         'final-text',
         expect.any(Function),
       )
@@ -679,6 +697,7 @@ describe('itoSessionManager', () => {
       mockSonioxTempKeyManager.getKey.mockRejectedValue(
         new Error('key fetch failed'),
       )
+      mockSonioxPersistentSession.getState.mockReturnValue('idle')
 
       const { ItoSessionManager } = await import('./itoSessionManager')
       const session = new ItoSessionManager()
@@ -726,8 +745,8 @@ describe('itoSessionManager', () => {
       await startPromise
 
       // The service should have received the first chunk (under cap) but not the second
-      expect(mockSonioxStreamingService.sendAudio).toHaveBeenCalledTimes(1)
-      expect(mockSonioxStreamingService.sendAudio).toHaveBeenCalledWith(
+      expect(mockSonioxPersistentSession.sendAudio).toHaveBeenCalledTimes(1)
+      expect(mockSonioxPersistentSession.sendAudio).toHaveBeenCalledWith(
         hugeChunk,
       )
 
