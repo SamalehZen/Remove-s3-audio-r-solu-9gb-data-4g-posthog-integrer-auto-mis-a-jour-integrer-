@@ -133,6 +133,8 @@ export class SonioxPersistentSession extends EventEmitter {
       `[SonioxPersistent:${this.sessionId}] Connecting | mode=${translationConfig ? 'translation' : 'transcription'} | hasContext=${!!options?.context}`,
     )
 
+    const connectingSessionId = this.sessionId
+
     try {
       this.client = new SonioxNodeClient({ api_key: tempApiKey })
 
@@ -200,9 +202,11 @@ export class SonioxPersistentSession extends EventEmitter {
       this.startIdleTimer()
     } catch (error) {
       console.error(`[SonioxPersistent:${this.sessionId}] Connection failed:`, error)
-      this.cleanupSession()
-      this.transitionTo('idle')
-      this.lastError = error instanceof Error ? error.message : String(error)
+      if (this.sessionId === connectingSessionId) {
+        this.cleanupSession()
+        this.transitionTo('idle')
+        this.lastError = error instanceof Error ? error.message : String(error)
+      }
       throw error
     }
   }
@@ -228,7 +232,18 @@ export class SonioxPersistentSession extends EventEmitter {
     this.currentUtteranceStartTime = Date.now()
     this.currentUtteranceChunks = 0
 
-    this.session!.resume()
+    try {
+      this.session!.resume()
+    } catch (e) {
+      console.error(`[SonioxPersistent:${this.sessionId}] Error calling resume():`, e)
+      this.lastError = e instanceof Error ? e.message : String(e)
+      this.needsReconnect = true
+      this.reconnectCount++
+      this.cleanupSession()
+      this.transitionTo('idle')
+      this.emit('error', e instanceof Error ? e : new Error('Failed to resume session'))
+      throw new Error('Session resume failed — caller must call ensureReady() with a fresh key')
+    }
     this.transitionTo('streaming')
 
     console.log(
@@ -249,6 +264,17 @@ export class SonioxPersistentSession extends EventEmitter {
         this.session.pause()
       } catch (e) {
         console.error(`[SonioxPersistent:${this.sessionId}] Error calling pause():`, e)
+        this.lastError = e instanceof Error ? e.message : String(e)
+        this.needsReconnect = true
+        this.reconnectCount++
+        this.cleanupSession()
+        this.transitionTo('idle')
+        this.emit('error', e instanceof Error ? e : new Error('Failed to pause session'))
+        return {
+          text: this.currentUtteranceText,
+          durationMs: Date.now() - utteranceStart,
+          tokenCount: this.currentUtteranceTokenCount,
+        }
       }
     }
 
@@ -256,10 +282,19 @@ export class SonioxPersistentSession extends EventEmitter {
       await this.waitForFinalTokens(500)
     }
 
-    if (this.state === 'streaming') {
-      this.transitionTo('paused')
-      this.startIdleTimer()
+    if (this.state !== 'streaming') {
+      console.log(
+        `[SonioxPersistent:${this.sessionId}] State changed to '${this.state}' during waitForFinalTokens, aborting stopStreaming`,
+      )
+      return {
+        text: this.currentUtteranceText,
+        durationMs: Date.now() - utteranceStart,
+        tokenCount: this.currentUtteranceTokenCount,
+      }
     }
+
+    this.transitionTo('paused')
+    this.startIdleTimer()
 
     this.totalUtterances++
 
@@ -302,8 +337,8 @@ export class SonioxPersistentSession extends EventEmitter {
       this.lastError = error instanceof Error ? error.message : String(error)
       this.needsReconnect = true
       this.reconnectCount++
-      this.transitionTo('idle')
       this.cleanupSession()
+      this.transitionTo('idle')
       this.emit('error', error instanceof Error ? error : new Error('Failed to send audio chunk'))
     }
   }
@@ -374,7 +409,7 @@ export class SonioxPersistentSession extends EventEmitter {
     })
 
     session.on('error', (error: Error) => {
-      if (this.state === 'idle' || this.state === 'closing') {
+      if (this.state === 'idle' || this.state === 'closing' || !this.session) {
         console.log(
           `[SonioxPersistent:${this.sessionId}] Error in ${this.state} state (already handled), ignoring: ${error.message}`,
         )
@@ -398,13 +433,13 @@ export class SonioxPersistentSession extends EventEmitter {
       this.lastError = error.message
       this.needsReconnect = true
       this.reconnectCount++
-      this.transitionTo('idle')
       this.cleanupSession()
+      this.transitionTo('idle')
       this.emit('error', error)
     })
 
     session.on('disconnected', (reason?: string) => {
-      if (reason === 'client_closed' || this.state === 'closing' || this.state === 'idle') {
+      if (reason === 'client_closed' || this.state === 'closing' || this.state === 'idle' || !this.session) {
         console.log(
           `[SonioxPersistent:${this.sessionId}] Disconnected (expected) | reason="${reason ?? 'none'}" | state=${this.state}`,
         )
@@ -418,8 +453,8 @@ export class SonioxPersistentSession extends EventEmitter {
       this.lastError = `Unexpected disconnect: ${reason ?? 'none'}`
       this.needsReconnect = true
       this.reconnectCount++
-      this.transitionTo('idle')
       this.cleanupSession()
+      this.transitionTo('idle')
       this.emit('error', new Error(`Unexpected disconnect: ${reason ?? 'none'}`))
     })
 
@@ -455,16 +490,17 @@ export class SonioxPersistentSession extends EventEmitter {
   private cleanupSession(): void {
     this.clearIdleTimer()
 
-    if (this.session) {
+    const sessionToClose = this.session
+    this.session = null
+    this.client = null
+
+    if (sessionToClose) {
       try {
-        this.session.close()
+        sessionToClose.close()
       } catch (e) {
         console.error(`[SonioxPersistent:${this.sessionId}] Error closing session:`, e)
       }
-      this.session = null
     }
-
-    this.client = null
   }
 
   private startIdleTimer(): void {
@@ -507,6 +543,10 @@ export class SonioxPersistentSession extends EventEmitter {
     const prevHints = JSON.stringify(this.lastOptions?.languageHints ?? null)
     const newHints = JSON.stringify(options?.languageHints ?? null)
     if (prevHints !== newHints) return true
+
+    const prevContext = JSON.stringify(this.lastOptions?.context ?? null)
+    const newContext = JSON.stringify(options?.context ?? null)
+    if (prevContext !== newContext) return true
 
     return false
   }
