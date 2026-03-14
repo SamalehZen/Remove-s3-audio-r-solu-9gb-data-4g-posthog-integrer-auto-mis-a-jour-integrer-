@@ -944,6 +944,7 @@ export class ItoSessionManager {
     })
 
     recordingStateNotifier.notifyRecordingStopped()
+    recordingStateNotifier.notifyProcessingStopped()
     timingCollector.clearInteraction()
     interactionManager.clearCurrentInteraction()
     allowAppNap()

@@ -171,6 +171,10 @@ class AgentSessionManager {
       this.sonioxPersistentSession.on('error', (error: Error) => {
         console.error(`[AgentSession] [SONIOX-ERROR] ${error.message}`)
         this.cleanupSoniox()
+        voiceInputService.stopAudioRecording().catch(() => {})
+        recordingStateNotifier.notifyRecordingStopped()
+        recordingStateNotifier.notifyProcessingStopped()
+        allowAppNap()
       })
     }
 
@@ -195,6 +199,9 @@ class AgentSessionManager {
     } catch (error) {
       console.error('[AgentSession] Soniox connect failed:', error)
       this.cleanupSoniox()
+      voiceInputService.stopAudioRecording().catch(() => {})
+      recordingStateNotifier.notifyRecordingStopped()
+      allowAppNap()
     }
   }
 

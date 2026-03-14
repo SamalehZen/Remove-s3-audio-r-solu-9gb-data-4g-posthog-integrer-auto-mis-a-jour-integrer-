@@ -706,7 +706,7 @@ describe('itoSessionManager', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       await session.completeSession()
 
-      // No speech detected path — sonioxService is null so rawTranscript is ''
+      // No speech detected path — persistent session returns empty text after failed ensureReady
       expect(mockTextInserter.insertText).not.toHaveBeenCalled()
       expect(
         mockRecordingStateNotifier.notifyRecordingStopped,
